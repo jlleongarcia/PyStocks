@@ -1,15 +1,23 @@
+from django.shortcuts import render
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 
 
+def home(request):
+    """
+    Home page - MarketMind landing page
+    """
+    return render(request, 'index.html')
+
+
 @api_view(['GET'])
 def api_root(request, format=None):
     """
-    API Root - Welcome to Stonks API
+    API Root - Welcome to MarketMind API
     """
     return Response({
-        'message': 'Welcome to Stonks - Stock Market Research & Portfolio Management API',
+        'message': 'Welcome to MarketMind - Stock Market Research & Portfolio Management API',
         'version': '1.0.0',
         'endpoints': {
             'admin': reverse('admin:index', request=request, format=format),

@@ -1,5 +1,5 @@
 """
-URL configuration for stonks_project project.
+URL configuration for MarketMind project.
 
 The `urlpatterns` list routes URLs to views. For more information please see:
     https://docs.djangoproject.com/en/5.0/topics/http/urls/
@@ -22,10 +22,16 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
-from .views import api_root
+from .views import api_root, home
+
+# Customize Django Admin
+admin.site.site_header = "MarketMind Administration"
+admin.site.site_title = "MarketMind Admin"
+admin.site.index_title = "Welcome to MarketMind"
 
 urlpatterns = [
-    path('', api_root, name='api-root'),
+    path('', home, name='home'),
+    path('api/', api_root, name='api-root'),
     path('admin/', admin.site.urls),
     
     # API endpoints

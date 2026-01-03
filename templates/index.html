@@ -1,0 +1,210 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero">
+    <div class="container">
+        <div class="hero-content">
+            <div class="hero-text">
+                <h1 class="hero-title">
+                    Intelligent Insights for <span class="gradient-text">Smarter Investing</span>
+                </h1>
+                <p class="hero-description">
+                    MarketMind combines cutting-edge analytics with real-time market data to help you make informed investment decisions. Track, analyze, and optimize your portfolio with confidence.
+                </p>
+                <div class="hero-actions">
+                    <a href="/admin/" class="btn btn-primary btn-large">
+                        Start Free Trial
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M7.5 15L12.5 10L7.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </a>
+                    <a href="#features" class="btn btn-outline btn-large">
+                        Learn More
+                    </a>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat">
+                        <div class="stat-value">10K+</div>
+                        <div class="stat-label">Active Users</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">$2B+</div>
+                        <div class="stat-label">Assets Tracked</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">99.9%</div>
+                        <div class="stat-label">Uptime</div>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <div class="chart-title">Portfolio Performance</div>
+                        <div class="chart-value positive">+24.5%</div>
+                    </div>
+                    <div class="chart-placeholder">
+                        <svg viewBox="0 0 400 200" class="stock-chart">
+                            <defs>
+                                <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                    <stop offset="0%" style="stop-color:#6366f1;stop-opacity:0.4" />
+                                    <stop offset="100%" style="stop-color:#6366f1;stop-opacity:0" />
+                                </linearGradient>
+                            </defs>
+                            <path d="M 0 150 Q 50 140, 100 120 T 200 80 T 300 60 T 400 40" 
+                                  stroke="#6366f1" stroke-width="3" fill="none"/>
+                            <path d="M 0 150 Q 50 140, 100 120 T 200 80 T 300 60 T 400 40 L 400 200 L 0 200 Z" 
+                                  fill="url(#chartGradient)"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="hero-gradient"></div>
+</section>
+
+<!-- Features Section -->
+<section id="features" class="features">
+    <div class="container">
+        <div class="section-header">
+            <h2 class="section-title">Everything you need to succeed</h2>
+            <p class="section-description">
+                Powerful features designed for both beginners and experienced investors
+            </p>
+        </div>
+        
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <h3 class="feature-title">Real-Time Analytics</h3>
+                <p class="feature-description">
+                    Get instant insights with live market data and advanced charting tools. Make decisions based on up-to-the-minute information.
+                </p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">💼</div>
+                <h3 class="feature-title">Portfolio Tracking</h3>
+                <p class="feature-description">
+                    Monitor all your investments in one place. Track performance, diversification, and risk metrics effortlessly.
+                </p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🔍</div>
+                <h3 class="feature-title">Stock Research</h3>
+                <p class="feature-description">
+                    Deep dive into company fundamentals, financial statements, and analyst ratings to make informed decisions.
+                </p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🎯</div>
+                <h3 class="feature-title">Smart Alerts</h3>
+                <p class="feature-description">
+                    Set custom alerts for price movements, news events, and technical indicators. Never miss an opportunity.
+                </p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">📈</div>
+                <h3 class="feature-title">Performance Reports</h3>
+                <p class="feature-description">
+                    Generate comprehensive reports on your portfolio performance, gains, losses, and tax implications.
+                </p>
+            </div>
+            
+            <div class="feature-card">
+                <div class="feature-icon">🔐</div>
+                <h3 class="feature-title">Bank-Level Security</h3>
+                <p class="feature-description">
+                    Your data is protected with industry-leading encryption and security protocols. Trade with confidence.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- About Section -->
+<section id="about" class="about">
+    <div class="container">
+        <div class="about-content">
+            <div class="about-text">
+                <h2 class="section-title">Built for the modern investor</h2>
+                <p class="about-description">
+                    MarketMind was created by a team of traders, developers, and data scientists who understand the challenges of modern investing. We combine decades of market experience with cutting-edge technology to deliver insights that matter.
+                </p>
+                <ul class="about-list">
+                    <li>
+                        <svg class="check-icon" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Data-driven decision making</span>
+                    </li>
+                    <li>
+                        <svg class="check-icon" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Institutional-grade tools for everyone</span>
+                    </li>
+                    <li>
+                        <svg class="check-icon" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Continuous innovation and updates</span>
+                    </li>
+                    <li>
+                        <svg class="check-icon" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>24/7 customer support</span>
+                    </li>
+                </ul>
+            </div>
+            <div class="about-visual">
+                <div class="stats-card">
+                    <div class="stats-header">Market Overview</div>
+                    <div class="stats-items">
+                        <div class="stats-item">
+                            <div class="stats-label">S&P 500</div>
+                            <div class="stats-value positive">+1.2%</div>
+                        </div>
+                        <div class="stats-item">
+                            <div class="stats-label">NASDAQ</div>
+                            <div class="stats-value positive">+0.8%</div>
+                        </div>
+                        <div class="stats-item">
+                            <div class="stats-label">DOW</div>
+                            <div class="stats-value negative">-0.3%</div>
+                        </div>
+                        <div class="stats-item">
+                            <div class="stats-label">VIX</div>
+                            <div class="stats-value">12.45</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="cta">
+    <div class="container">
+        <div class="cta-content">
+            <h2 class="cta-title">Ready to transform your investing?</h2>
+            <p class="cta-description">
+                Join thousands of investors who trust MarketMind for their portfolio management needs.
+            </p>
+            <div class="cta-actions">
+                <a href="/admin/" class="btn btn-primary btn-large">
+                    Get Started Free
+                </a>
+                <p class="cta-note">No credit card required • 14-day free trial</p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
