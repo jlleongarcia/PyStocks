@@ -1,4 +1,8 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.contrib.auth import update_session_auth_hash
+from django.utils import timezone
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
@@ -9,6 +13,45 @@ def home(request):
     Home page - MarketMind landing page
     """
     return render(request, 'index.html')
+
+
+@login_required
+def password_change_required(request):
+    """
+    Force password change for users with temporary passwords
+    """
+    if request.method == 'POST':
+        old_password = request.POST.get('old_password')
+        new_password1 = request.POST.get('new_password1')
+        new_password2 = request.POST.get('new_password2')
+        
+        # Validate old password
+        if not request.user.check_password(old_password):
+            messages.error(request, 'Current password is incorrect.')
+        # Validate new passwords match
+        elif new_password1 != new_password2:
+            messages.error(request, 'New passwords do not match.')
+        # Validate new password is different
+        elif old_password == new_password1:
+            messages.error(request, 'New password must be different from the current password.')
+        # Validate password strength (minimum 8 characters)
+        elif len(new_password1) < 8:
+            messages.error(request, 'New password must be at least 8 characters long.')
+        else:
+            # Change password
+            request.user.set_password(new_password1)
+            request.user.profile.force_password_change = False
+            request.user.profile.password_changed_at = timezone.now()
+            request.user.save()
+            request.user.profile.save()
+            
+            # Keep user logged in after password change
+            update_session_auth_hash(request, request.user)
+            
+            messages.success(request, 'Your password has been successfully changed!')
+            return redirect('home')
+    
+    return render(request, 'password_change_required.html')
 
 
 @api_view(['GET'])

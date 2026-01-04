@@ -137,8 +137,8 @@ a:hover {
 .nav-wrapper {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     height: 72px;
+    gap: 48px;
 }
 
 .logo {
@@ -172,6 +172,10 @@ a:hover {
     gap: 32px;
 }
 
+.nav-spacer {
+    flex: 1;
+}
+
 .nav-link {
     color: var(--text-secondary);
     font-weight: 500;
@@ -202,6 +206,8 @@ a:hover {
     display: flex;
     align-items: center;
     gap: 12px;
+    margin-left: auto;
+    flex-shrink: 0;
 }
 
 .mobile-menu-toggle {

@@ -18,11 +18,12 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.contrib.auth import views as auth_views
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
-from .views import api_root, home
+from .views import api_root, home, password_change_required
 
 # Customize Django Admin
 admin.site.site_header = "MarketMind Administration"
@@ -33,6 +34,10 @@ urlpatterns = [
     path('', home, name='home'),
     path('api/', api_root, name='api-root'),
     path('admin/', admin.site.urls),
+    
+    # Authentication
+    path('password-change-required/', password_change_required, name='password_change_required'),
+    path('logout/', auth_views.LogoutView.as_view(next_page='home'), name='logout'),
     
     # API endpoints
     path('api/research/', include('research.urls')),
