@@ -11,10 +11,13 @@ MarketMind is a comprehensive stock market research and portfolio management pla
 ```bash
 git clone https://github.com/jlleongarcia/PyStocks.git
 cd PyStocks
-make setup
+#cp .env.example .env
+make setup #make up
 ```
 
 Then open http://localhost:8300 - **Done!** 🎉
+
+![alt text](django-pystocks-cerdos.png)
 
 📖 See [CONTRIBUTING.md](CONTRIBUTING.md) and [QUICKSTART.md](QUICKSTART.md) for detailed setup instructions.
 
