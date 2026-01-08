@@ -63,6 +63,63 @@
         border-radius: 12px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         margin-bottom: 32px;
+        position: relative;
+    }
+    
+    .search-wrapper {
+        position: relative;
+    }
+    
+    .search-suggestions {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 2px solid var(--gray-300);
+        border-top: none;
+        border-radius: 0 0 8px 8px;
+        max-height: 300px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .search-suggestions.active {
+        display: block;
+    }
+    
+    .suggestion-item {
+        padding: 12px 20px;
+        cursor: pointer;
+        border-bottom: 1px solid var(--gray-200);
+        transition: background 0.2s;
+    }
+    
+    .suggestion-item:last-child {
+        border-bottom: none;
+    }
+    
+    .suggestion-item:hover {
+        background: var(--gray-100);
+    }
+    
+    .suggestion-symbol {
+        font-weight: 700;
+        color: var(--primary);
+        margin-right: 8px;
+    }
+    
+    .suggestion-name {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+    }
+    
+    .suggestion-meta {
+        font-size: 0.75rem;
+        color: var(--text-tertiary);
+        margin-top: 2px;
     }
     
     .filter-pills {
@@ -153,19 +210,26 @@
 <div class="container" style="padding-bottom: 100px;">
     <!-- Search Box -->
     <div class="search-box">
-        <form method="GET" action="{% url 'research:stock_list_page' %}">
-            <div style="display: flex; gap: 12px;">
-                <input 
-                    type="text" 
-                    name="search" 
-                    class="form-control" 
-                    placeholder="Search by symbol or company name..." 
-                    value="{{ search_query }}"
-                    style="flex: 1; padding: 12px 20px; border-radius: 8px; border: 2px solid var(--gray-300);"
-                >
-                <button type="submit" class="btn btn-primary" style="padding: 12px 32px;">
-                    <i class="bi bi-search"></i> Search
-                </button>
+        <form method="GET" action="{% url 'research:stock_list_page' %}" id="searchForm">
+            <div class="search-wrapper">
+                <div style="display: flex; gap: 12px;">
+                    <input 
+                        type="text" 
+                        name="search" 
+                        id="searchInput"
+                        class="form-control" 
+                        placeholder="Search by symbol or company name..." 
+                        value="{{ search_query }}"
+                        style="flex: 1; padding: 12px 20px; border-radius: 8px; border: 2px solid var(--gray-300);"
+                        autocomplete="off"
+                    >
+                    <button type="submit" class="btn btn-primary" style="padding: 12px 32px;">
+                        <i class="bi bi-search"></i> Search
+                    </button>
+                </div>
+                
+                <!-- Autocomplete suggestions -->
+                <div class="search-suggestions" id="searchSuggestions"></div>
             </div>
         </form>
         
@@ -284,6 +348,77 @@
 </button>
 
 <script>
+// Autocomplete functionality
+const searchInput = document.getElementById('searchInput');
+const searchSuggestions = document.getElementById('searchSuggestions');
+let debounceTimer;
+
+searchInput.addEventListener('input', function(e) {
+    const query = e.target.value.trim();
+    
+    // Clear previous timer
+    clearTimeout(debounceTimer);
+    
+    if (query.length < 1) {
+        searchSuggestions.classList.remove('active');
+        searchSuggestions.innerHTML = '';
+        return;
+    }
+    
+    // Debounce: wait 300ms after user stops typing
+    debounceTimer = setTimeout(() => {
+        fetchSuggestions(query);
+    }, 300);
+});
+
+async function fetchSuggestions(query) {
+    try {
+        const response = await fetch(`/research/stocks/?search=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        
+        if (data.results && data.results.length > 0) {
+            displaySuggestions(data.results.slice(0, 8)); // Show max 8 suggestions
+        } else {
+            searchSuggestions.innerHTML = '<div class="suggestion-item" style="color: var(--text-tertiary); cursor: default;">No stocks found</div>';
+            searchSuggestions.classList.add('active');
+        }
+    } catch (error) {
+        console.error('Error fetching suggestions:', error);
+    }
+}
+
+function displaySuggestions(stocks) {
+    searchSuggestions.innerHTML = stocks.map(stock => `
+        <div class="suggestion-item" onclick="window.location.href='/research/stocks/${stock.symbol}/'">
+            <div>
+                <span class="suggestion-symbol">${stock.symbol}</span>
+                <span class="suggestion-name">${stock.name}</span>
+            </div>
+            ${stock.sector || stock.industry ? `
+                <div class="suggestion-meta">
+                    ${stock.sector ? stock.sector : ''}
+                    ${stock.sector && stock.industry ? ' • ' : ''}
+                    ${stock.industry ? stock.industry : ''}
+                </div>
+            ` : ''}
+        </div>
+    `).join('');
+    searchSuggestions.classList.add('active');
+}
+
+// Close suggestions when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.search-wrapper')) {
+        searchSuggestions.classList.remove('active');
+    }
+});
+
+// Handle form submission
+document.getElementById('searchForm').addEventListener('submit', function(e) {
+    searchSuggestions.classList.remove('active');
+});
+
+// Add Stock Modal functionality
 document.getElementById('addStockForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     
