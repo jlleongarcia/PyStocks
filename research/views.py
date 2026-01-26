@@ -62,7 +62,7 @@ class StockDetailView(APIView):
     def get(self, request, symbol):
         symbol = symbol.upper()
         
-        # Try to get from cache first
+        # Try to get from cache first (shorter cache for fresher data)
         cache_key = f'stock_detail_{symbol}'
         cached_data = cache.get(cache_key)
         if cached_data:
@@ -72,20 +72,43 @@ class StockDetailView(APIView):
         # Try to get from database
         try:
             stock = Stock.objects.get(symbol=symbol)
+            
+            # Check data freshness - update if data is more than 1 day old
+            latest_price = HistoricalPrice.objects.filter(stock=stock).order_by('-date').first()
+            needs_update = False
+            
+            if not latest_price:
+                needs_update = True
+                logger.info(f"No price data for {symbol}, fetching...")
+            else:
+                days_old = (datetime.now().date() - latest_price.date).days
+                if days_old > 1:
+                    needs_update = True
+                    logger.info(f"Data for {symbol} is {days_old} days old, updating...")
+            
+            # Update data if needed
+            if needs_update:
+                fetcher = StockDataFetcher()
+                # Fetch comprehensive historical data (all available) plus recent updates
+                result = fetcher.fetch_and_save_all(symbol, period='max')
+                if not result['success']:
+                    logger.warning(f"Failed to update data for {symbol}: {result['errors']}")
+                    # Continue with existing data if update fails
+            
             serializer = StockDetailSerializer(stock)
             data = serializer.data
             
-            # Cache for 5 minutes
-            cache.set(cache_key, data, 300)
+            # Cache for 2 minutes (shorter for fresher data)
+            cache.set(cache_key, data, 120)
             
             return Response(data)
         
         except Stock.DoesNotExist:
             # Stock not in database, fetch from yfinance
-            logger.info(f"Stock {symbol} not found, fetching from yfinance")
+            logger.info(f"Stock {symbol} not found, fetching all available historical data...")
             
             fetcher = StockDataFetcher()
-            result = fetcher.fetch_and_save_all(symbol, period='1y')
+            result = fetcher.fetch_and_save_all(symbol, period='max')
             
             if not result['success']:
                 return Response(
@@ -117,28 +140,34 @@ class StockPriceHistoryView(APIView):
         start_date = request.query_params.get('start')
         end_date = request.query_params.get('end')
         days = request.query_params.get('days', '365')
+        all_data = request.query_params.get('all', 'false').lower() == 'true'
         
-        # Parse dates
-        if start_date:
-            try:
-                start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-            except ValueError:
-                return Response(
-                    {'error': 'Invalid start date format. Use YYYY-MM-DD'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+        # Handle "all data" request (Max button)
+        if all_data:
+            start_date = None
+            end_date = datetime.now().date()
         else:
-            # Default to last N days
-            try:
-                days_int = int(days)
-                start_date = (datetime.now() - timedelta(days=days_int)).date()
-            except ValueError:
-                return Response(
-                    {'error': 'Invalid days parameter'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            # Parse dates
+            if start_date:
+                try:
+                    start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+                except ValueError:
+                    return Response(
+                        {'error': 'Invalid start date format. Use YYYY-MM-DD'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            else:
+                # Default to last N days
+                try:
+                    days_int = int(days)
+                    start_date = (datetime.now() - timedelta(days=days_int)).date()
+                except ValueError:
+                    return Response(
+                        {'error': 'Invalid days parameter'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
         
-        if end_date:
+        if end_date and not all_data:
             try:
                 end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
             except ValueError:
@@ -146,11 +175,11 @@ class StockPriceHistoryView(APIView):
                     {'error': 'Invalid end date format. Use YYYY-MM-DD'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-        else:
+        elif not all_data:
             end_date = datetime.now().date()
         
         # Try cache first
-        cache_key = f'stock_prices_{symbol}_{start_date}_{end_date}'
+        cache_key = f'stock_prices_{symbol}_{start_date or "all"}_{end_date}'
         cached_data = cache.get(cache_key)
         if cached_data:
             logger.info(f"Cache hit for {symbol} prices")
@@ -159,24 +188,45 @@ class StockPriceHistoryView(APIView):
         # Get from database
         try:
             stock = Stock.objects.get(symbol=symbol)
-            prices = HistoricalPrice.objects.filter(
-                stock=stock,
-                date__gte=start_date,
-                date__lte=end_date
-            ).order_by('date')
             
-            if not prices.exists():
-                # No data in database, fetch from yfinance
-                logger.info(f"No price data for {symbol}, fetching from yfinance")
-                fetcher = StockDataFetcher()
-                fetcher.save_historical_prices(symbol, start_date=start_date, end_date=end_date)
-                
-                # Retry query
+            # Build query based on parameters
+            if all_data or start_date is None:
+                prices = HistoricalPrice.objects.filter(
+                    stock=stock,
+                    date__lte=end_date
+                ).order_by('date')
+            else:
                 prices = HistoricalPrice.objects.filter(
                     stock=stock,
                     date__gte=start_date,
                     date__lte=end_date
                 ).order_by('date')
+            
+            if not prices.exists():
+                # No data in database, fetch ALL historical data automatically
+                logger.info(f"No price data for {symbol} in requested range, fetching all available historical data...")
+                fetcher = StockDataFetcher()
+                result = fetcher.fetch_and_save_all(symbol, period='max')
+                
+                if not result['success']:
+                    logger.error(f"Failed to fetch data for {symbol}: {result['errors']}")
+                    return Response(
+                        {'error': f'Could not fetch historical data for {symbol}'},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+                
+                # Retry query after fetching all data
+                if all_data or start_date is None:
+                    prices = HistoricalPrice.objects.filter(
+                        stock=stock,
+                        date__lte=end_date
+                    ).order_by('date')
+                else:
+                    prices = HistoricalPrice.objects.filter(
+                        stock=stock,
+                        date__gte=start_date,
+                        date__lte=end_date
+                    ).order_by('date')
             
             serializer = HistoricalPriceSerializer(prices, many=True)
             data = {
@@ -195,10 +245,46 @@ class StockPriceHistoryView(APIView):
             return Response(data)
         
         except Stock.DoesNotExist:
-            return Response(
-                {'error': f'Stock {symbol} not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            # Stock not found, automatically fetch all historical data
+            logger.info(f"Stock {symbol} not found in StockPriceHistoryView, fetching complete historical dataset...")
+            fetcher = StockDataFetcher()
+            result = fetcher.fetch_and_save_all(symbol, period='max')
+            
+            if not result['success']:
+                return Response(
+                    {'error': f'Stock {symbol} not found and could not be fetched', 'details': result['errors']},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Now get the data for the requested time range
+            stock = Stock.objects.get(symbol=symbol)
+            
+            if all_data or start_date is None:
+                prices = HistoricalPrice.objects.filter(
+                    stock=stock,
+                    date__lte=end_date
+                ).order_by('date')
+            else:
+                prices = HistoricalPrice.objects.filter(
+                    stock=stock,
+                    date__gte=start_date,
+                    date__lte=end_date
+                ).order_by('date')
+            
+            serializer = HistoricalPriceSerializer(prices, many=True)
+            data = {
+                'symbol': symbol,
+                'start_date': start_date or 'all',
+                'end_date': end_date,
+                'count': len(serializer.data),
+                'prices': serializer.data,
+                'just_fetched': True
+            }
+            
+            # Cache for 2 minutes for newly fetched data
+            cache.set(cache_key, data, 120)
+            
+            return Response(data, status=status.HTTP_201_CREATED)
 
 
 class StockDividendsView(APIView):
@@ -241,10 +327,33 @@ class StockDividendsView(APIView):
             return Response(data)
         
         except Stock.DoesNotExist:
-            return Response(
-                {'error': f'Stock {symbol} not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            # Stock not found, automatically fetch all historical data including dividends
+            logger.info(f"Stock {symbol} not found in StockDividendsView, fetching complete dataset...")
+            fetcher = StockDataFetcher()
+            result = fetcher.fetch_and_save_all(symbol, period='max')
+            
+            if not result['success']:
+                return Response(
+                    {'error': f'Stock {symbol} not found and could not be fetched', 'details': result['errors']},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Now get the dividends
+            stock = Stock.objects.get(symbol=symbol)
+            dividends = Dividend.objects.filter(stock=stock).order_by('-date')
+            
+            serializer = DividendSerializer(dividends, many=True)
+            data = {
+                'symbol': symbol,
+                'count': len(serializer.data),
+                'dividends': serializer.data,
+                'just_fetched': True
+            }
+            
+            # Cache for 2 minutes for newly fetched data
+            cache.set(cache_key, data, 120)
+            
+            return Response(data, status=status.HTTP_201_CREATED)
 
 
 class StockSplitsView(APIView):
@@ -287,10 +396,33 @@ class StockSplitsView(APIView):
             return Response(data)
         
         except Stock.DoesNotExist:
-            return Response(
-                {'error': f'Stock {symbol} not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            # Stock not found, automatically fetch all historical data including splits
+            logger.info(f"Stock {symbol} not found in StockSplitsView, fetching complete dataset...")
+            fetcher = StockDataFetcher()
+            result = fetcher.fetch_and_save_all(symbol, period='max')
+            
+            if not result['success']:
+                return Response(
+                    {'error': f'Stock {symbol} not found and could not be fetched', 'details': result['errors']},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Now get the splits
+            stock = Stock.objects.get(symbol=symbol)
+            splits = StockSplit.objects.filter(stock=stock).order_by('-date')
+            
+            serializer = StockSplitSerializer(splits, many=True)
+            data = {
+                'symbol': symbol,
+                'count': len(serializer.data),
+                'splits': serializer.data,
+                'just_fetched': True
+            }
+            
+            # Cache for 2 minutes for newly fetched data
+            cache.set(cache_key, data, 120)
+            
+            return Response(data, status=status.HTTP_201_CREATED)
 
 
 class FetchStockDataView(APIView):
@@ -376,6 +508,29 @@ class StockDetailPageView(TemplateView):
         try:
             stock = Stock.objects.get(symbol=symbol)
             
+            # Check data freshness - similar to API view
+            latest_price = HistoricalPrice.objects.filter(stock=stock).order_by('-date').first()
+            needs_update = False
+            
+            if not latest_price:
+                needs_update = True
+                logger.info(f"No price data for {symbol} (template view), fetching...")
+            else:
+                days_old = (datetime.now().date() - latest_price.date).days
+                if days_old > 1:
+                    needs_update = True
+                    logger.info(f"Data for {symbol} is {days_old} days old (template view), updating...")
+            
+            # Update data if needed
+            if needs_update:
+                fetcher = StockDataFetcher()
+                result = fetcher.fetch_and_save_all(symbol, period='max')
+                if not result['success']:
+                    logger.warning(f"Failed to update data for {symbol} (template view): {result['errors']}")
+                    # Continue with existing data if update fails
+                else:
+                    context['just_updated'] = True
+            
             # Check if we have data
             has_prices = HistoricalPrice.objects.filter(stock=stock).exists()
             has_dividends = Dividend.objects.filter(stock=stock).exists()
@@ -387,9 +542,10 @@ class StockDetailPageView(TemplateView):
             context['has_splits'] = has_splits
             
         except Stock.DoesNotExist:
-            # Stock not found, try to fetch it
+            # Stock not found, try to fetch it with all available historical data
+            logger.info(f"Stock {symbol} not found (template view), fetching all historical data...")
             fetcher = StockDataFetcher()
-            result = fetcher.fetch_and_save_all(symbol, period='1y')
+            result = fetcher.fetch_and_save_all(symbol, period='max')
             
             if result['success']:
                 stock = Stock.objects.get(symbol=symbol)

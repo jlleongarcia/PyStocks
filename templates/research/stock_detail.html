@@ -163,6 +163,19 @@
             <div>
                 <h1 class="stock-title">{{ stock.symbol }}</h1>
                 <p class="stock-subtitle">{{ stock.name }}</p>
+                {% if just_updated %}
+                <div style="margin-top: 8px;">
+                    <small style="color: rgba(255,255,255,0.8); background: rgba(0,255,0,0.2); padding: 4px 8px; border-radius: 12px;">
+                        <i class="bi bi-check-circle"></i> Data updated to latest
+                    </small>
+                </div>
+                {% elif just_fetched %}
+                <div style="margin-top: 8px;">
+                    <small style="color: rgba(255,255,255,0.8); background: rgba(0,150,255,0.2); padding: 4px 8px; border-radius: 12px;">
+                        <i class="bi bi-download"></i> All historical data loaded
+                    </small>
+                </div>
+                {% endif %}
             </div>
             <button class="refresh-btn" onclick="refreshData()">
                 <i class="bi bi-arrow-clockwise"></i> Refresh Data
@@ -211,6 +224,8 @@
             <button class="time-btn" onclick="loadPriceData(180)">6M</button>
             <button class="time-btn" onclick="loadPriceData(365)">1Y</button>
             <button class="time-btn" onclick="loadPriceData(1825)">5Y</button>
+            <button class="time-btn" onclick="loadPriceData(3650)">10Y</button>
+            <button class="time-btn" onclick="loadPriceData('max')">Max</button>
         </div>
         
         <div class="chart-container">
@@ -295,7 +310,8 @@ async function loadPriceData(days) {
     event.target.classList.add('active');
     
     try {
-        const response = await fetch(`/research/stocks/${symbol}/prices/?days=${days}`);
+        const url = days === 'max' ? `/research/stocks/${symbol}/prices/?all=true` : `/research/stocks/${symbol}/prices/?days=${days}`;
+        const response = await fetch(url);
         const data = await response.json();
         
         if (data.prices && data.prices.length > 0) {
@@ -328,7 +344,7 @@ function updatePriceChart(prices) {
                 backgroundColor: 'rgba(99, 102, 241, 0.1)',
                 borderWidth: 2,
                 fill: true,
-                tension: 0.4,
+                tension: 0,
                 pointRadius: 0,
                 pointHoverRadius: 6,
             }]
