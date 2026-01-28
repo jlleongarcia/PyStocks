@@ -44,6 +44,11 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'django.contrib.sites',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
     
     # Local apps
     'research',
@@ -58,6 +63,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
     'main.middleware.ForcePasswordChangeMiddleware',  # Force password change for temp passwords
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -172,3 +178,55 @@ CELERY_RESULT_BACKEND = 'redis://redis:6379/0'
 # Stock API Keys (if needed)
 ALPHA_VANTAGE_API_KEY = config('ALPHA_VANTAGE_API_KEY', default='')
 FINNHUB_API_KEY = config('FINNHUB_API_KEY', default='')
+
+# Sites framework (required by django-allauth)
+SITE_ID = 1
+
+# Authentication backends
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+
+# Allauth settings - Configuration for total control
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_EMAIL_VERIFICATION = 'none'  # We handle this with our approval system
+ACCOUNT_USERNAME_REQUIRED = True
+ACCOUNT_AUTHENTICATION_METHOD = 'username_email'
+ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = False
+ACCOUNT_LOGIN_ON_PASSWORD_RESET = False
+
+# Social account settings - Configuration for Google
+SOCIALACCOUNT_EMAIL_REQUIRED = True
+SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
+SOCIALACCOUNT_QUERY_EMAIL = True
+SOCIALACCOUNT_STORE_TOKENS = True
+
+# Google provider configuration
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': [
+            'profile',
+            'email',
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+        },
+        'OAUTH_PKCE_ENABLED': True,
+    }
+}
+
+# Custom configuration for approval process
+SOCIALACCOUNT_ADAPTER = 'research.adapters.SocialAccountAdapter'
+ACCOUNT_ADAPTER = 'research.adapters.AccountAdapter'
+
+# Email settings for notifications (configure based on your needs)
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # For development
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@py-stocks.com')
+ADMIN_EMAIL = config('ADMIN_EMAIL', default='admin@py-stocks.com')
+
+# Authentication URLs
+LOGIN_URL = '/accounts/login/'
+LOGOUT_URL = '/accounts/logout/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/'

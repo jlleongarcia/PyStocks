@@ -35,9 +35,16 @@ urlpatterns = [
     path('api/', api_root, name='api-root'),
     path('admin/', admin.site.urls),
     
-    # Authentication
+    # Authentication URLs
+    path('accounts/login/', auth_views.LoginView.as_view(
+        template_name='registration/login.html',
+        redirect_authenticated_user=True
+    ), name='login'),
+    path('accounts/logout/', auth_views.LogoutView.as_view(next_page='home'), name='logout'),
     path('password-change-required/', password_change_required, name='password_change_required'),
-    path('logout/', auth_views.LogoutView.as_view(next_page='home'), name='logout'),
+    
+    # OAuth URLs (Google login)
+    path('oauth/', include('allauth.urls')),
     
     # Research app (includes both frontend and API routes)
     path('research/', include('research.urls')),

@@ -499,22 +499,23 @@ async function loadSplits() {
 async function refreshData() {
     const btn = event.target.closest('.refresh-btn');
     btn.disabled = true;
-    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Refreshing...';
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Updating...';
     
     try {
+        // Always refresh with all available historical data
         const response = await fetch('/research/fetch/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': getCookie('csrftoken')
             },
-            body: JSON.stringify({ symbol: symbol, period: '3mo' })
+            body: JSON.stringify({ symbol: symbol, period: 'max' })
         });
         
         if (response.ok) {
             location.reload();
         } else {
-            alert('Failed to refresh data. Please try again.');
+            alert('Failed to update data. Please try again.');
             btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i> Refresh Data';
         }

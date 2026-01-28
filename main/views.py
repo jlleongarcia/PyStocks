@@ -10,7 +10,7 @@ from rest_framework.reverse import reverse
 
 def home(request):
     """
-    Home page - MarketMind landing page
+    Home page - Py-Stocks landing page
     """
     return render(request, 'index.html')
 

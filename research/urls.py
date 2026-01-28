@@ -7,6 +7,13 @@ urlpatterns = [
     # Frontend Pages (Template Views)
     path('', views.StockListPageView.as_view(), name='stock_list_page'),
     path('stocks/<str:symbol>/', views.StockDetailPageView.as_view(), name='stock_detail_page'),
+    
+    # Authentication URLs
+    path('register/', views.user_registration, name='user_registration'),
+    path('register/success/', views.registration_success, name='registration_success'),
+    path('account/', views.account_panel, name='account_panel'),
+    path('account/settings/', views.account_settings, name='account_settings'),
+    path('account/password/', views.change_password, name='change_password'),
 ]
 
 # API Endpoints (keep separate for clarity)

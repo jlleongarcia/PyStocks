@@ -8,15 +8,23 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.core.cache import cache
 from django.db.models import Q
 from django.views.generic import TemplateView
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth import login, authenticate, update_session_auth_hash
+from django.contrib import messages
+from django.contrib.auth.models import User
+from django.urls import reverse
 from datetime import datetime, timedelta
 import logging
 
-from .models import Stock, HistoricalPrice, Dividend, StockSplit
+from .models import Stock, HistoricalPrice, Dividend, StockSplit, UserRegistrationRequest
 from .serializers import (
     StockSerializer, StockDetailSerializer, 
     HistoricalPriceSerializer, DividendSerializer, StockSplitSerializer
 )
 from .services import StockDataFetcher
+from .forms import UserRegistrationForm, AccountSettingsForm, PasswordChangeForm
 
 logger = logging.getLogger(__name__)
 
@@ -454,7 +462,7 @@ class FetchStockDataView(APIView):
 # Template-Based Views for Frontend
 # ============================================
 
-class StockListPageView(TemplateView):
+class StockListPageView(LoginRequiredMixin, TemplateView):
     """
     Render the stock list/search page
     """
@@ -495,7 +503,7 @@ class StockListPageView(TemplateView):
         return context
 
 
-class StockDetailPageView(TemplateView):
+class StockDetailPageView(LoginRequiredMixin, TemplateView):
     """
     Render the stock detail page with charts
     """
@@ -624,3 +632,118 @@ class StockMetricsView(APIView):
             })
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# Authentication Views
+
+def user_registration(request):
+    """View for user registration (requires approval)"""
+    if request.method == 'POST':
+        form = UserRegistrationForm(request.POST)
+        if form.is_valid():
+            # Save registration request
+            solicitud = form.save()
+            
+            # Send notification email to administrator
+            try:
+                from django.core.mail import send_mail
+                from django.conf import settings
+                import logging
+                
+                logger = logging.getLogger(__name__)
+                
+                # Get admin email
+                try:
+                    admin_user = User.objects.filter(is_superuser=True).first()
+                    admin_email = admin_user.email if admin_user and admin_user.email else settings.ADMIN_EMAIL
+                except:
+                    admin_email = settings.ADMIN_EMAIL
+                
+                subject = f'[Py-Stocks] New registration request - {solicitud.username}'
+                message = f"""
+Hello Administrator,
+
+A new registration request has been received for Py-Stocks.
+
+Applicant details:
+- Username: {solicitud.username}
+- Full name: {solicitud.first_name} {solicitud.last_name}
+- Email: {solicitud.email}
+- Request date: {solicitud.request_date.strftime('%m/%d/%Y %H:%M')}
+
+To review and approve/reject this request, access the admin panel:
+{request.build_absolute_uri('/admin/research/userregistrationrequest/')}
+
+Best regards,
+Py-Stocks
+                """
+                
+                send_mail(
+                    subject=subject,
+                    message=message,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[admin_email],
+                    fail_silently=False,
+                )
+                logger.info(f"Notification email sent to admin {admin_email} for request {solicitud.username}")
+                
+            except Exception as e:
+                # If email sending fails, log error but continue
+                logger.error(f"Error sending notification email to admin: {e}")
+                print(f"Error sending notification email to admin: {e}")
+            
+            messages.success(
+                request, 
+                f'Registration request sent successfully! Your request is pending administrator approval. '
+                f'We will contact you at {solicitud.email} when it is processed.'
+            )
+            return redirect('research:registration_success')
+    else:
+        form = UserRegistrationForm()
+    
+    return render(request, 'registration/registro.html', {'form': form})
+
+
+def registration_success(request):
+    """View to show success message after registration"""
+    return render(request, 'registration/registro_exitoso.html')
+
+
+@login_required
+def account_panel(request):
+    """User account panel for managing account settings"""
+    return render(request, 'registration/account_panel.html', {
+        'user': request.user
+    })
+
+
+@login_required
+def account_settings(request):
+    """View for users to manage their account settings"""
+    if request.method == 'POST':
+        form = AccountSettingsForm(request.POST, instance=request.user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Your account settings have been updated successfully.')
+            return redirect('research:account_panel')
+    else:
+        form = AccountSettingsForm(instance=request.user)
+    
+    return render(request, 'registration/account_settings.html', {'form': form})
+
+
+@login_required
+def change_password(request):
+    """View for users to change their password"""
+    if request.method == 'POST':
+        form = PasswordChangeForm(request.user, request.POST)
+        if form.is_valid():
+            user = form.save()
+            # Keep user logged in after password change
+            update_session_auth_hash(request, user)
+            messages.success(request, 'Your password has been changed successfully.')
+            return redirect('research:account_panel')
+    else:
+        form = PasswordChangeForm(request.user)
+    
+    return render(request, 'registration/change_password.html', {'form': form})

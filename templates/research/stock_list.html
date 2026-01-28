@@ -291,7 +291,7 @@
                 {% if search_query %}
                     No results for "{{ search_query }}". Try a different search term.
                 {% else %}
-                    Start by adding some stocks to your research database.
+                    Start building your research database. Just enter a stock symbol and we'll automatically download all available historical data.
                 {% endif %}
             </p>
             <button class="btn btn-primary" onclick="document.getElementById('addStockModal').style.display='flex'">
@@ -306,35 +306,26 @@
     <div style="background: white; padding: 32px; border-radius: 12px; max-width: 500px; width: 90%;">
         <h3 style="margin-bottom: 24px;">Add New Stock</h3>
         <form id="addStockForm">
-            <div style="margin-bottom: 16px;">
+            <div style="margin-bottom: 24px;">
                 <label style="display: block; margin-bottom: 8px; font-weight: 600;">Stock Symbol</label>
                 <input 
                     type="text" 
                     id="stockSymbol" 
                     class="form-control" 
-                    placeholder="e.g., AAPL, MSFT, GOOGL"
-                    style="padding: 12px; border-radius: 8px; text-transform: uppercase;"
+                    placeholder="e.g., AAPL, MSFT, GOOGL, TSLA"
+                    style="padding: 12px; border-radius: 8px; text-transform: uppercase; font-size: 16px;"
                     required
                 >
-            </div>
-            <div style="margin-bottom: 16px;">
-                <label style="display: block; margin-bottom: 8px; font-weight: 600;">Period</label>
-                <select id="stockPeriod" class="form-control" style="padding: 12px; border-radius: 8px;">
-                    <option value="1mo">1 Month</option>
-                    <option value="3mo">3 Months</option>
-                    <option value="6mo">6 Months</option>
-                    <option value="1y" selected>1 Year</option>
-                    <option value="2y">2 Years</option>
-                    <option value="5y">5 Years</option>
-                    <option value="max">Maximum</option>
-                </select>
+                <small style="color: var(--text-secondary); margin-top: 8px; display: block;">
+                    We'll automatically download all available historical data for this stock
+                </small>
             </div>
             <div style="display: flex; gap: 12px;">
                 <button type="button" class="btn btn-outline" onclick="document.getElementById('addStockModal').style.display='none'" style="flex: 1;">
                     Cancel
                 </button>
                 <button type="submit" class="btn btn-primary" style="flex: 1;">
-                    <i class="bi bi-download"></i> Fetch Data
+                    <i class="bi bi-plus-circle"></i> Add Stock
                 </button>
             </div>
         </form>
@@ -423,24 +414,30 @@ document.getElementById('addStockForm').addEventListener('submit', async functio
     e.preventDefault();
     
     const symbol = document.getElementById('stockSymbol').value.toUpperCase();
-    const period = document.getElementById('stockPeriod').value;
     const statusDiv = document.getElementById('fetchStatus');
     const submitBtn = e.target.querySelector('button[type="submit"]');
     
+    if (!symbol) {
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = `<div style="color: var(--danger);">Please enter a stock symbol</div>`;
+        return;
+    }
+    
     // Show loading
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Fetching...';
+    submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Adding...';
     statusDiv.style.display = 'block';
-    statusDiv.innerHTML = `<div style="color: var(--primary);">⏳ Fetching data for ${symbol}...</div>`;
+    statusDiv.innerHTML = `<div style="color: var(--primary);">📈 Adding ${symbol} with all historical data...</div>`;
     
     try {
+        // Use max period automatically - no user choice needed
         const response = await fetch('/research/fetch/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': getCookie('csrftoken')
             },
-            body: JSON.stringify({ symbol, period })
+            body: JSON.stringify({ symbol: symbol, period: 'max' })
         });
         
         const data = await response.json();
@@ -448,8 +445,8 @@ document.getElementById('addStockForm').addEventListener('submit', async functio
         if (response.ok && data.success) {
             statusDiv.innerHTML = `
                 <div style="color: var(--success); padding: 12px; background: #d1fae5; border-radius: 8px;">
-                    ✓ Successfully fetched ${symbol}!<br>
-                    <small>Prices: ${data.prices_created}, Dividends: ${data.dividends_saved}, Splits: ${data.splits_saved}</small>
+                    ✓ Successfully added ${symbol}!<br>
+                    <small>📊 Historical data: ${data.prices_created} prices | 💰 Dividends: ${data.dividends_saved} | 📈 Splits: ${data.splits_saved}</small>
                 </div>
             `;
             setTimeout(() => {
@@ -458,20 +455,20 @@ document.getElementById('addStockForm').addEventListener('submit', async functio
         } else {
             statusDiv.innerHTML = `
                 <div style="color: var(--danger); padding: 12px; background: #fee2e2; border-radius: 8px;">
-                    ✗ Error: ${data.errors ? data.errors.join(', ') : 'Failed to fetch data'}
+                    ✗ Error: ${data.errors ? data.errors.join(', ') : 'Failed to add stock. Please check the symbol and try again.'}
                 </div>
             `;
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="bi bi-download"></i> Fetch Data';
+            submitBtn.innerHTML = '<i class="bi bi-plus-circle"></i> Add Stock';
         }
     } catch (error) {
         statusDiv.innerHTML = `
             <div style="color: var(--danger); padding: 12px; background: #fee2e2; border-radius: 8px;">
-                ✗ Error: ${error.message}
+                ✗ Error: Failed to connect. Please try again.
             </div>
         `;
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="bi bi-download"></i> Fetch Data';
+        submitBtn.innerHTML = '<i class="bi bi-plus-circle"></i> Add Stock';
     }
 });
 
