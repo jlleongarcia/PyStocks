@@ -49,8 +49,8 @@ urlpatterns = [
     # Research app (includes both frontend and API routes)
     path('research/', include('research.urls')),
     
-    # API endpoints
-    path('api/portfolio/', include('portfolio.urls')),
+    # Portfolio app (frontend and API)
+    path('portfolio/', include('portfolio.urls')),
     
     # JWT Authentication
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

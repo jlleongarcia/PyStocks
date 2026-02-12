@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
 from django.contrib.admin import AdminSite
 from copy import deepcopy
-from .models import Stock, HistoricalPrice, Dividend, StockSplit, Watchlist, WatchlistItem, UserRegistrationRequest
+from .models import Stock, HistoricalPrice, Dividend, StockSplit, UserRegistrationRequest
 
 
 class CustomAdminSite(AdminSite):
@@ -80,20 +80,8 @@ class StockSplitAdmin(admin.ModelAdmin):
     date_hierarchy = 'date'
 
 
-@admin.register(Watchlist)
-class WatchlistAdmin(admin.ModelAdmin):
-    list_display = ['name', 'user', 'created_at']
-    list_filter = ['user', 'created_at']
-    search_fields = ['name', 'user__username']
-    readonly_fields = ['created_at']
-
-
-@admin.register(WatchlistItem)
-class WatchlistItemAdmin(admin.ModelAdmin):
-    list_display = ['watchlist', 'symbol', 'added_at']
-    list_filter = ['watchlist', 'added_at']
-    search_fields = ['symbol', 'watchlist__name', 'notes']
-    readonly_fields = ['added_at']
+# Note: Watchlist and WatchlistItem are managed through the frontend interface,
+# not through Django admin. Users should use the Portfolio Management interface.
 
 
 @admin.register(UserRegistrationRequest)
