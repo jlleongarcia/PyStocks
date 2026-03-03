@@ -555,3 +555,54 @@ The Py-Stocks Team
             logger = logging.getLogger(__name__)
             logger.error(f"Error sending rejection email to {self.email}: {str(e)}")
             print(f"Error sending rejection email to {self.email}: {str(e)}")
+
+
+class SymbolRedirect(models.Model):
+    """
+    Maps old/alternative stock symbols to current ones
+    Handles ticker changes (e.g., FB -> META) and exchange disambiguation
+    """
+    old_symbol = models.CharField(
+        max_length=10, 
+        unique=True, 
+        db_index=True,
+        help_text="Old or alternative symbol (e.g., 'FB', 'TWTR')"
+    )
+    new_symbol = models.CharField(
+        max_length=10,
+        db_index=True,
+        help_text="Current symbol to redirect to (e.g., 'META', 'X')"
+    )
+    reason = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Reason for redirect (e.g., 'Rebranded from Facebook to Meta')"
+    )
+    
+    # For exchange disambiguation
+    exchange_hint = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="Preferred exchange (e.g., 'NASDAQ', 'NYSE')"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Set to False if redirect is no longer valid"
+    )
+    
+    class Meta:
+        ordering = ['old_symbol']
+        indexes = [
+            models.Index(fields=['old_symbol', 'is_active']),
+            models.Index(fields=['new_symbol']),
+        ]
+        verbose_name = "Symbol Redirect"
+        verbose_name_plural = "Symbol Redirects"
+    
+    def __str__(self):
+        return f"{self.old_symbol} → {self.new_symbol}"

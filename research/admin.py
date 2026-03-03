@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
 from django.contrib.admin import AdminSite
 from copy import deepcopy
-from .models import Stock, HistoricalPrice, Dividend, StockSplit, UserRegistrationRequest
+from .models import Stock, HistoricalPrice, Dividend, StockSplit, UserRegistrationRequest, SymbolRedirect
 
 
 class CustomAdminSite(AdminSite):
@@ -201,4 +201,30 @@ class UserRegistrationRequestAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         """Don't allow adding requests from admin (only from form)"""
         return False
+
+
+@admin.register(SymbolRedirect)
+class SymbolRedirectAdmin(admin.ModelAdmin):
+    list_display = ['old_symbol', 'new_symbol', 'reason', 'exchange_hint', 'is_active', 'created_at']
+    list_filter = ['is_active', 'exchange_hint', 'created_at']
+    search_fields = ['old_symbol', 'new_symbol', 'reason']
+    readonly_fields = ['created_at', 'updated_at']
+    ordering = ['old_symbol']
+    
+    fieldsets = (
+        ('Symbol Redirect', {
+            'fields': ('old_symbol', 'new_symbol', 'reason')
+        }),
+        ('Exchange Information', {
+            'fields': ('exchange_hint',),
+            'description': 'Optional: Specify preferred exchange for disambiguation'
+        }),
+        ('Status', {
+            'fields': ('is_active',)
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
 

@@ -138,9 +138,25 @@ class PortfolioTransactionsView(APIView):
         """Create new transaction for a portfolio"""
         portfolio = get_object_or_404(Portfolio, pk=pk, user=request.user)
         
+        # Validate and ensure stock exists
+        symbol = request.data.get('symbol', '').strip().upper()
+        if not symbol:
+            return Response(
+                {'error': 'Stock symbol is required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        success, message, stock = PortfolioCalculationService.ensure_stock_exists(symbol)
+        if not success:
+            return Response(
+                {'error': message, 'symbol': symbol},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         # Add portfolio to request data
         data = request.data.copy()
         data['portfolio'] = portfolio.id
+        data['symbol'] = symbol  # Use validated uppercase symbol
         
         serializer = TransactionSerializer(data=data)
         if serializer.is_valid():
@@ -174,7 +190,26 @@ class TransactionCreateView(APIView):
         if portfolio_id:
             portfolio = get_object_or_404(Portfolio, pk=portfolio_id, user=request.user)
         
-        serializer = TransactionSerializer(data=request.data)
+        # Validate and ensure stock exists
+        symbol = request.data.get('symbol', '').strip().upper()
+        if not symbol:
+            return Response(
+                {'error': 'Stock symbol is required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        success, message, stock = PortfolioCalculationService.ensure_stock_exists(symbol)
+        if not success:
+            return Response(
+                {'error': message, 'symbol': symbol},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Update request data with validated symbol
+        data = request.data.copy()
+        data['symbol'] = symbol
+        
+        serializer = TransactionSerializer(data=data)
         if serializer.is_valid():
             transaction = serializer.save()
             
@@ -361,15 +396,37 @@ def transaction_create_view(request, portfolio_id):
     
     if request.method == 'POST':
         try:
+            symbol = request.POST.get('symbol', '').strip().upper()
+            
+            # Validate symbol is provided
+            if not symbol:
+                messages.error(request, 'Stock symbol is required.')
+                return render(request, 'portfolio/transaction_form.html', {
+                    'portfolio': portfolio,
+                    'today': datetime.now().strftime('%Y-%m-%d')
+                })
+            
+            # Ensure stock exists in database (auto-fetch if needed)
+            success, message, stock = PortfolioCalculationService.ensure_stock_exists(symbol)
+            if not success:
+                messages.error(request, message)
+                return render(request, 'portfolio/transaction_form.html', {
+                    'portfolio': portfolio,
+                    'today': datetime.now().strftime('%Y-%m-%d')
+                })
+            
+            # Use the resolved symbol from stock object (handles redirects like FB→META)
+            resolved_symbol = stock.symbol
+            
             # Get and clean form values
             commission_value = request.POST.get('commission', '').strip()
             if not commission_value:
                 commission_value = 0
             
-            # Create transaction
+            # Create transaction with resolved symbol
             transaction = Transaction.objects.create(
                 portfolio=portfolio,
-                symbol=request.POST.get('symbol').upper(),
+                symbol=resolved_symbol,  # Use resolved symbol, not original input
                 transaction_type=request.POST.get('transaction_type'),
                 quantity=Decimal(request.POST.get('quantity')),
                 price=Decimal(request.POST.get('price')),

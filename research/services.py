@@ -21,12 +21,13 @@ class StockDataFetcher:
     def __init__(self):
         self.session = None
     
-    def fetch_stock_info(self, symbol: str) -> Optional[Dict]:
+    def fetch_stock_info(self, symbol: str, prefer_us_exchanges: bool = True) -> Optional[Dict]:
         """
         Fetch basic stock information from yfinance
         
         Args:
             symbol: Stock ticker symbol (e.g., 'AAPL')
+            prefer_us_exchanges: If True, prioritize US exchanges (NYSE, NASDAQ)
             
         Returns:
             Dictionary with stock info or None if failed
@@ -38,12 +39,26 @@ class StockDataFetcher:
             try:
                 info = ticker.info
                 if info and 'symbol' in info:
+                    exchange = info.get('exchange', '')
+                    
+                    # If preferring US exchanges, check if this is a non-US exchange
+                    # and if symbol without suffix might be US
+                    if prefer_us_exchanges and exchange and '.' in symbol:
+                        # Symbol has exchange suffix (e.g., 'INTC.L')
+                        # Try the base symbol without suffix for US exchanges
+                        base_symbol = symbol.split('.')[0]
+                        logger.info(f"Symbol {symbol} has exchange suffix, trying US version: {base_symbol}")
+                        us_info = self.fetch_stock_info(base_symbol, prefer_us_exchanges=False)
+                        if us_info and us_info.get('exchange') in ['NMS', 'NYQ', 'NYSE', 'NASDAQ']:
+                            logger.info(f"Found US listing for {base_symbol}, using instead of {symbol}")
+                            return us_info
+                    
                     return {
                         'symbol': symbol.upper(),
                         'name': info.get('longName', info.get('shortName', symbol)),
                         'sector': info.get('sector'),
                         'industry': info.get('industry'),
-                        'exchange': info.get('exchange'),
+                        'exchange': exchange,
                         'currency': info.get('currency', 'USD'),
                         'country': info.get('country'),
                     }
