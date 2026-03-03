@@ -2,6 +2,7 @@
 Portfolio API Views
 Comprehensive views for portfolio management with financial metrics integration
 """
+from decimal import Decimal
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -143,8 +144,21 @@ class PortfolioTransactionsView(APIView):
         
         serializer = TransactionSerializer(data=data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            transaction = serializer.save()
+            
+            # Update position based on transaction
+            PortfolioCalculationService.update_position_from_transaction(transaction)
+            
+            # Fetch and store buy yield if applicable
+            if transaction.transaction_type == 'BUY':
+                PortfolioCalculationService.fetch_and_store_buy_yield(transaction)
+            
+            # Include redirect URL in response
+            response_data = serializer.data
+            response_data['redirect_url'] = f'/portfolio/{portfolio.id}/'
+            response_data['portfolio_id'] = portfolio.id
+            
+            return Response(response_data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -156,13 +170,28 @@ class TransactionCreateView(APIView):
         """Create transaction"""
         # Verify user owns the portfolio
         portfolio_id = request.data.get('portfolio')
+        portfolio = None
         if portfolio_id:
-            get_object_or_404(Portfolio, pk=portfolio_id, user=request.user)
+            portfolio = get_object_or_404(Portfolio, pk=portfolio_id, user=request.user)
         
         serializer = TransactionSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            transaction = serializer.save()
+            
+            # Update position based on transaction
+            PortfolioCalculationService.update_position_from_transaction(transaction)
+            
+            # Fetch and store buy yield if applicable
+            if transaction.transaction_type == 'BUY':
+                PortfolioCalculationService.fetch_and_store_buy_yield(transaction)
+            
+            # Include redirect URL in response if portfolio is known
+            response_data = serializer.data
+            if portfolio:
+                response_data['redirect_url'] = f'/portfolio/{portfolio.id}/'
+                response_data['portfolio_id'] = portfolio.id
+            
+            return Response(response_data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -332,14 +361,19 @@ def transaction_create_view(request, portfolio_id):
     
     if request.method == 'POST':
         try:
+            # Get and clean form values
+            commission_value = request.POST.get('commission', '').strip()
+            if not commission_value:
+                commission_value = 0
+            
             # Create transaction
             transaction = Transaction.objects.create(
                 portfolio=portfolio,
                 symbol=request.POST.get('symbol').upper(),
                 transaction_type=request.POST.get('transaction_type'),
-                quantity=request.POST.get('quantity'),
-                price=request.POST.get('price'),
-                commission=request.POST.get('commission', 0),
+                quantity=Decimal(request.POST.get('quantity')),
+                price=Decimal(request.POST.get('price')),
+                commission=Decimal(str(commission_value)),
                 transaction_date=request.POST.get('transaction_date'),
                 broker=request.POST.get('broker', ''),
                 notes=request.POST.get('notes', '')
@@ -356,6 +390,9 @@ def transaction_create_view(request, portfolio_id):
             return redirect('portfolio:portfolio_detail_view', pk=portfolio.id)
             
         except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"ERROR in transaction_create_view: {error_details}")
             messages.error(request, f'Error adding transaction: {str(e)}')
     
     return render(request, 'portfolio/transaction_form.html', {
