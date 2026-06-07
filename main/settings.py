@@ -228,5 +228,5 @@ ADMIN_EMAIL = config('ADMIN_EMAIL', default='admin@py-stocks.com')
 # Authentication URLs
 LOGIN_URL = '/accounts/login/'
 LOGOUT_URL = '/accounts/logout/'
-LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = '/'
+LOGIN_REDIRECT_URL = '/portfolio/'
+LOGOUT_REDIRECT_URL = '/accounts/login/'

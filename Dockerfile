@@ -26,9 +26,9 @@ COPY . /app/
 # Create static and media directories
 RUN mkdir -p /app/staticfiles /app/media
 
-# Copy entrypoint script
-COPY scripts/entrypoint.sh /app/
-RUN chmod +x /app/entrypoint.sh
+# Copy entrypoint script outside /app so the bind-mount doesn't hide it
+COPY scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Set entrypoint
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["/entrypoint.sh"]

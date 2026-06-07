@@ -1,63 +1,42 @@
-"""
-URL configuration for MarketMind project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.0/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .views import api_root, home, password_change_required
 
-# Customize Django Admin
-admin.site.site_header = "MarketMind Administration"
-admin.site.site_title = "MarketMind Admin"
-admin.site.index_title = "Welcome to MarketMind"
+admin.site.site_header = "Py-Stocks Administration"
+admin.site.site_title = "Py-Stocks Admin"
+admin.site.index_title = "Portfolio Management"
 
 urlpatterns = [
     path('', home, name='home'),
     path('api/', api_root, name='api-root'),
     path('admin/', admin.site.urls),
-    
-    # Authentication URLs
+
+    # Authentication
     path('accounts/login/', auth_views.LoginView.as_view(
         template_name='registration/login.html',
         redirect_authenticated_user=True
     ), name='login'),
     path('accounts/logout/', auth_views.LogoutView.as_view(next_page='home'), name='logout'),
     path('password-change-required/', password_change_required, name='password_change_required'),
-    
-    # OAuth URLs (Google login)
+
+    # Google OAuth
     path('oauth/', include('allauth.urls')),
-    
-    # Research app (includes both frontend and API routes)
-    path('research/', include('research.urls')),
-    
-    # Portfolio app (frontend and API)
+
+    # Account management (registration, profile, password)
+    path('account/', include('research.urls')),
+
+    # Portfolio management
     path('portfolio/', include('portfolio.urls')),
-    
-    # JWT Authentication
+
+    # JWT
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
 
-# Serve media files in development
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

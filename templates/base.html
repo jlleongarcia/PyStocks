@@ -4,131 +4,140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Py-Stocks - Your intelligent stock market research and portfolio management platform">
-    <title>{% block title %}Py-Stocks - Intelligent Stock Market Insights{% endblock %}</title>
-    
-    <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
-    
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    
-    <!-- Fonts -->
+    <title>{% block title %}Py-Stocks{% endblock %}</title>
+
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236366f1'><path d='M3 3v18h18V3H3zm16 16H5V5h14v14z'/><path d='M7 15l4-4 3 3 4-4'/></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
-    <!-- Styles -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'css/main.css' %}">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <!-- Navigation -->
-    <nav class="navbar">
-        <div class="container">
-            <div class="nav-wrapper">
-                <a href="/" class="logo">
-                    <span class="logo-icon">📈</span>
-                    <span class="logo-text">Py-Stocks</span>
-                </a>
-                
-                <div class="nav-menu" id="navMenu">
-                    <a href="#features" class="nav-link">Features</a>
-                    <a href="#about" class="nav-link">About</a>
-                    <a href="/research/" class="nav-link">Research</a>
-                    {% if user.is_authenticated %}
-                        <a href="/portfolio/" class="nav-link">Portfolio</a>
-                        {% if user.is_staff %}
-                            <a href="/admin/" class="nav-link">Admin</a>
-                        {% endif %}
-                        <a href="{% url 'research:account_panel' %}" class="nav-link">Account</a>
-                    {% endif %}
-                </div>
-                
-                <div class="nav-spacer"></div>
-                
-                <div class="nav-actions">
-                    {% if user.is_authenticated %}
-                        <span class="navbar-text me-3">Hello, {{ user.first_name|default:user.username }}!</span>
-                        <a href="{% url 'logout' %}" class="btn btn-outline">Sign Out</a>
-                    {% else %}
-                        <a href="{% url 'login' %}" class="btn btn-outline">Sign In</a>
-                        <a href="{% url 'research:user_registration' %}" class="btn btn-primary">Register</a>
-                    {% endif %}
-                    <button class="mobile-menu-toggle" id="mobileMenuToggle">
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                    </button>
+
+{% if user.is_authenticated %}
+<!-- ====== SIDEBAR ====== -->
+<div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-logo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            Py-Stocks
+        </div>
+
+        <nav class="sidebar-nav">
+            <span class="nav-section-label">Portfolio</span>
+            <a href="{% url 'portfolio:portfolio_list_view' %}" class="nav-item {% if request.resolver_match.url_name == 'portfolio_list_view' %}active{% endif %}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                My Portfolios
+            </a>
+            <a href="{% url 'portfolio:portfolio_create_view' %}" class="nav-item {% if request.resolver_match.url_name == 'portfolio_create_view' %}active{% endif %}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                New Portfolio
+            </a>
+
+            <span class="nav-section-label" style="margin-top:8px;">Account</span>
+            <a href="{% url 'research:account_panel' %}" class="nav-item {% if request.resolver_match.url_name == 'account_panel' %}active{% endif %}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                Account
+            </a>
+            {% if user.is_staff %}
+            <a href="{% url 'admin:index' %}" class="nav-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                Admin Panel
+            </a>
+            {% endif %}
+            <a href="{% url 'logout' %}" class="nav-item danger">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                Sign Out
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="sidebar-user">
+                <div class="user-avatar">{{ user.first_name|first|upper|default:user.username|first|upper }}</div>
+                <div class="user-info">
+                    <div class="user-name">{{ user.first_name|default:user.username }}</div>
+                    <div class="user-role">{% if user.is_staff %}Administrator{% else %}Investor{% endif %}</div>
                 </div>
             </div>
         </div>
-    </nav>
+    </aside>
 
-    <!-- Main Content -->
-    <main>
-        {% block content %}{% endblock %}
-    </main>
+    <!-- Overlay for mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="container">
-            <div class="footer-grid">
-                <div class="footer-column">
-                    <div class="footer-logo">
-                        <span class="logo-icon">🧠</span>
-                        <span class="logo-text">MarketMind</span>
-                    </div>
-                    <p class="footer-description">
-                        Intelligent stock market insights powered by advanced analytics and real-time data.
-                    </p>
-                </div>
-                
-                <div class="footer-column">
-                    <h4>Product</h4>
-                    <ul>
-                        <li><a href="#features">Features</a></li>
-                        <li><a href="#pricing">Pricing</a></li>
-                        <li><a href="/admin/">Dashboard</a></li>
-                        <li><a href="#api">API</a></li>
-                    </ul>
-                </div>
-                
-                <div class="footer-column">
-                    <h4>Company</h4>
-                    <ul>
-                        <li><a href="#about">About</a></li>
-                        <li><a href="#contact">Contact</a></li>
-                        <li><a href="#blog">Blog</a></li>
-                        <li><a href="#careers">Careers</a></li>
-                    </ul>
-                </div>
-                
-                <div class="footer-column">
-                    <h4>Legal</h4>
-                    <ul>
-                        <li><a href="#privacy">Privacy</a></li>
-                        <li><a href="#terms">Terms</a></li>
-                        <li><a href="#security">Security</a></li>
-                    </ul>
-                </div>
+    <div class="main-content">
+        <!-- Mobile header -->
+        <header class="mobile-header">
+            <div class="mobile-header-logo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                </svg>
+                Py-Stocks
             </div>
-            
-            <div class="footer-bottom">
-                <p>&copy; 2026 MarketMind. All rights reserved.</p>
-                <div class="footer-social">
-                    <a href="#" aria-label="Twitter">𝕏</a>
-                    <a href="#" aria-label="LinkedIn">in</a>
-                    <a href="#" aria-label="GitHub">⚡</a>
-                </div>
+            <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+        </header>
+
+        <!-- Messages -->
+        {% if messages %}
+        <div style="padding: 16px 32px 0;" class="messages-container">
+            {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %}">
+                {% if message.tags == 'success' %}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                {% elif message.tags == 'error' %}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                {% else %}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                {% endif %}
+                <span>{{ message }}</span>
             </div>
+            {% endfor %}
         </div>
-    </footer>
+        {% endif %}
 
-    <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{% static 'js/main.js' %}"></script>
-    {% block extra_js %}{% endblock %}
+        <main class="page-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</div>
+
+{% else %}
+<!-- Unauthenticated — messages only (all views extending base.html require login) -->
+{% if messages %}
+<div style="position:fixed;top:16px;right:16px;z-index:999;max-width:360px;">
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %}" style="margin-bottom:8px;box-shadow:var(--shadow-md);">
+        <span>{{ message }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endif %}
+
+<script>
+(function() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    const menuBtn = document.getElementById('mobileMenuBtn');
+    if (!menuBtn) return;
+
+    menuBtn.addEventListener('click', function () {
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('visible');
+    });
+
+    overlay.addEventListener('click', function () {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('visible');
+    });
+})();
+</script>
+
+{% block extra_js %}{% endblock %}
 </body>
 </html>

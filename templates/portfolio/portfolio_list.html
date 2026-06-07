@@ -1,211 +1,73 @@
 {% extends 'base.html' %}
-{% load static %}
 
-{% block title %}My Portfolios - Py-Stocks{% endblock %}
-
-{% block extra_css %}
-<style>
-    body {
-        padding-top: 80px;
-    }
-    
-    .portfolio-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 4rem 0 3rem;
-        margin-bottom: 3rem;
-    }
-    
-    .portfolio-card {
-        background: white;
-        border-radius: 12px;
-        padding: 2rem;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        transition: transform 0.2s, box-shadow 0.2s;
-        cursor: pointer;
-    }
-    
-    .portfolio-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-    }
-    
-    .portfolio-card-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1rem;
-    }
-    
-    .portfolio-name {
-        font-size: 1.5rem;
-        font-weight: 600;
-        color: #2d3748;
-        margin: 0;
-    }
-    
-    .portfolio-stats {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin-top: 1.5rem;
-    }
-    
-    .stat-box {
-        background: #f7fafc;
-        padding: 1rem;
-        border-radius: 8px;
-    }
-    
-    .stat-label {
-        font-size: 0.875rem;
-        color: #718096;
-        margin-bottom: 0.25rem;
-    }
-    
-    .stat-value {
-        font-size: 1.5rem;
-        font-weight: 600;
-        color: #2d3748;
-    }
-    
-    .stat-value.positive {
-        color: #48bb78;
-    }
-    
-    .stat-value.negative {
-        color: #f56565;
-    }
-    
-    .btn-create-portfolio {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        padding: 0.75rem 1.5rem;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: transform 0.2s;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        text-decoration: none;
-    }
-    
-    .btn-create-portfolio:hover {
-        transform: translateY(-2px);
-        color: white;
-    }
-    
-    .btn-create-portfolio i {
-        font-size: 1.25rem;
-    }
-    
-    .empty-state {
-        text-align: center;
-        padding: 4rem 2rem;
-    }
-    
-    .empty-state i {
-        font-size: 4rem;
-        color: #cbd5e0;
-        margin-bottom: 1rem;
-    }
-</style>
-{% endblock %}
+{% block title %}My Portfolios — Py-Stocks{% endblock %}
 
 {% block content %}
-<div class="portfolio-header">
-    <div class="container">
-        <div class="row align-items-center">
-            <div class="col-md-8">
-                <h1 class="mb-2">My Portfolios</h1>
-                <p class="mb-0" style="opacity: 0.9;">Track your investments and analyze performance</p>
-            </div>
-            <div class="col-md-4 text-md-end">
-                <a href="{% url 'portfolio:portfolio_create_view' %}" class="btn-create-portfolio">
-                    <i class="bi bi-plus-circle"></i>Create Portfolio
-                </a>
-            </div>
+<div class="page-header">
+    <div class="page-header-inner">
+        <div>
+            <h1 class="page-title">My Portfolios</h1>
+            <p class="page-subtitle">Track and manage your investment positions</p>
         </div>
+        <a href="{% url 'portfolio:portfolio_create_view' %}" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Portfolio
+        </a>
     </div>
 </div>
 
-<div class="container pb-5">
-    <!-- Display Messages -->
-    {% if messages %}
-    <div class="messages-container mb-4">
-        {% for message in messages %}
-        <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %} alert-dismissible fade show" role="alert">
-            {% if message.tags == 'success' %}
-            <i class="bi bi-check-circle me-2"></i>
-            {% elif message.tags == 'error' %}
-            <i class="bi bi-exclamation-triangle me-2"></i>
-            {% elif message.tags == 'warning' %}
-            <i class="bi bi-exclamation-circle me-2"></i>
+{% if portfolios %}
+<div class="portfolio-cards">
+    {% for portfolio in portfolios %}
+    <div class="portfolio-card" onclick="window.location.href='{% url "portfolio:portfolio_detail_view" portfolio.id %}'">
+        <div class="portfolio-card-body">
+            <div class="portfolio-card-name">
+                {{ portfolio.name }}
+                {% if not portfolio.is_active %}<span class="badge badge-neutral" style="margin-left:8px;">Inactive</span>{% endif %}
+            </div>
+            {% if portfolio.description %}
+            <div class="portfolio-card-desc">{{ portfolio.description }}</div>
             {% endif %}
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
-        {% endfor %}
+
+        <div class="portfolio-card-stats">
+            <div class="pcs-item">
+                <div class="pcs-label">Value</div>
+                <div class="pcs-value">${{ portfolio.total_value|floatformat:2 }}</div>
+            </div>
+            <div class="pcs-item">
+                <div class="pcs-label">Invested</div>
+                <div class="pcs-value">${{ portfolio.total_invested|floatformat:2 }}</div>
+            </div>
+            <div class="pcs-item">
+                <div class="pcs-label">Return</div>
+                <div class="pcs-value {% if portfolio.total_return >= 0 %}positive{% else %}negative{% endif %}">
+                    {% if portfolio.total_return >= 0 %}+{% endif %}{{ portfolio.total_return_percentage|floatformat:2 }}%
+                </div>
+            </div>
+            <div class="pcs-item">
+                <div class="pcs-label">Positions</div>
+                <div class="pcs-value">{{ portfolio.positions_count }}</div>
+            </div>
+        </div>
+
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;color:var(--text-muted);flex-shrink:0;">
+            <polyline points="9 18 15 12 9 6"/>
+        </svg>
     </div>
-    {% endif %}
-    
-    {% if portfolios %}
-        {% for portfolio in portfolios %}
-        <div class="portfolio-card" onclick="window.location.href='{% url "portfolio:portfolio_detail_view" portfolio.id %}'">
-            <div class="portfolio-card-header">
-                <div>
-                    <h3 class="portfolio-name">{{ portfolio.name }}</h3>
-                    {% if portfolio.description %}
-                        <p class="text-muted mb-0">{{ portfolio.description }}</p>
-                    {% endif %}
-                </div>
-                <div>
-                    {% if portfolio.is_active %}
-                        <span class="badge bg-success">Active</span>
-                    {% else %}
-                        <span class="badge bg-secondary">Inactive</span>
-                    {% endif %}
-                </div>
-            </div>
-            
-            <div class="portfolio-stats">
-                <div class="stat-box">
-                    <div class="stat-label">Total Value</div>
-                    <div class="stat-value">${{ portfolio.total_value|floatformat:2 }}</div>
-                </div>
-                
-                <div class="stat-box">
-                    <div class="stat-label">Total Invested</div>
-                    <div class="stat-value">${{ portfolio.total_invested|floatformat:2 }}</div>
-                </div>
-                
-                <div class="stat-box">
-                    <div class="stat-label">Total Return</div>
-                    <div class="stat-value {% if portfolio.total_return >= 0 %}positive{% else %}negative{% endif %}">
-                        ${{ portfolio.total_return|floatformat:2 }}
-                        ({{ portfolio.total_return_percentage|floatformat:2 }}%)
-                    </div>
-                </div>
-                
-                <div class="stat-box">
-                    <div class="stat-label">Positions</div>
-                    <div class="stat-value">{{ portfolio.positions_count }}</div>
-                </div>
-            </div>
-        </div>
-        {% endfor %}
-    {% else %}
-        <div class="empty-state">
-            <i class="bi bi-briefcase"></i>
-            <h3 class="mb-3">No Portfolios Yet</h3>
-            <p class="text-muted mb-4">Start tracking your investments by creating your first portfolio</p>
-            <a href="{% url 'portfolio:portfolio_create_view' %}" class="btn-create-portfolio">
-                <i class="bi bi-plus-circle"></i>Create Your First Portfolio
-            </a>
-        </div>
-    {% endif %}
+    {% endfor %}
 </div>
+
+{% else %}
+<div class="card">
+    <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+        </svg>
+        <h3>No portfolios yet</h3>
+        <p>Create your first portfolio to start tracking your investments</p>
+        <a href="{% url 'portfolio:portfolio_create_view' %}" class="btn btn-primary">Create your first portfolio</a>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

@@ -1,330 +1,229 @@
 {% extends 'base.html' %}
-{% load static %}
 
-{% block title %}{{ portfolio.name }} - Portfolio Details{% endblock %}
-
-{% block extra_css %}
-<style>
-    body {
-        padding-top: 80px;
-    }
-    
-    .portfolio-detail-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 3rem 0 2rem;
-        margin-bottom: 2rem;
-    }
-    
-    .summary-cards {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: 1.5rem;
-        margin-bottom: 2rem;
-    }
-    
-    .summary-card {
-        background: white;
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    
-    .summary-card-label {
-        font-size: 0.875rem;
-        color: #718096;
-        margin-bottom: 0.5rem;
-        font-weight: 500;
-    }
-    
-    .summary-card-value {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #2d3748;
-    }
-    
-    .summary-card-value.positive {
-        color: #48bb78;
-    }
-    
-    .summary-card-value.negative {
-        color: #f56565;
-    }
-    
-    .positions-table {
-        background: white;
-        border-radius: 12px;
-        padding: 2rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        margin-bottom: 2rem;
-    }
-    
-    .table-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1.5rem;
-    }
-    
-    .table-title {
-        font-size: 1.5rem;
-        font-weight: 600;
-        color: #2d3748;
-        margin: 0;
-    }
-    
-    .btn-add-transaction {
-        background: #667eea;
-        color: white;
-        border: none;
-        padding: 0.5rem 1rem;
-        border-radius: 6px;
-        font-weight: 500;
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-    
-    .btn-add-transaction:hover {
-        background: #5568d3;
-        color: white;
-    }
-    
-    .btn-add-transaction i {
-        font-size: 1.125rem;
-    }
-    
-    .position-row {
-        border-bottom: 1px solid #e2e8f0;
-        padding: 1rem 0;
-        transition: background 0.2s;
-    }
-    
-    .position-row:hover {
-        background: #f7fafc;
-        cursor: pointer;
-    }
-    
-    .position-symbol {
-        font-weight: 600;
-        color: #2d3748;
-        font-size: 1.125rem;
-    }
-    
-    .position-name {
-        color: #718096;
-        font-size: 0.875rem;
-    }
-    
-    .dividend-badge {
-        background: #48bb78;
-        color: white;
-        font-size: 0.75rem;
-        padding: 0.25rem 0.5rem;
-        border-radius: 4px;
-        margin-left: 0.5rem;
-    }
-    
-    .metrics-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 1rem;
-    }
-    
-    .metric-item {
-        text-align: center;
-    }
-    
-    .metric-label {
-        font-size: 0.75rem;
-        color: #718096;
-        margin-bottom: 0.25rem;
-    }
-    
-    .metric-value {
-        font-size: 1rem;
-        font-weight: 600;
-        color: #2d3748;
-    }
-    
-    .empty-positions {
-        text-align: center;
-        padding: 3rem;
-        color: #a0aec0;
-    }
-    
-    .btn i {
-        font-size: 1.125rem;
-    }
-    
-    .btn.btn-light {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-</style>
-{% endblock %}
+{% block title %}{{ portfolio.name }} — Py-Stocks{% endblock %}
 
 {% block content %}
-<div class="portfolio-detail-header">
-    <div class="container">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <a href="{% url 'portfolio:portfolio_list_view' %}" class="text-white mb-2 d-inline-block" style="opacity: 0.8; display: inline-flex; align-items: center; gap: 0.5rem;">
-                    <i class="bi bi-arrow-left"></i>Back to Portfolios
-                </a>
-                <h1 class="mb-2">{{ portfolio.name }}</h1>
-                {% if portfolio.description %}
-                    <p class="mb-0" style="opacity: 0.9;">{{ portfolio.description }}</p>
-                {% endif %}
-            </div>
-            <div>
-                <a href="{% url 'portfolio:transaction_create_view' portfolio.id %}" class="btn btn-light">
-                    <i class="bi bi-plus-circle"></i>Add Transaction
-                </a>
-            </div>
+<div class="page-header">
+    <div class="breadcrumb">
+        <a href="{% url 'portfolio:portfolio_list_view' %}">Portfolios</a>
+        <span class="breadcrumb-sep">/</span>
+        <span>{{ portfolio.name }}</span>
+    </div>
+    <div class="page-header-inner">
+        <div>
+            <h1 class="page-title">{{ portfolio.name }}</h1>
+            {% if portfolio.description %}
+            <p class="page-subtitle">{{ portfolio.description }}</p>
+            {% endif %}
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <a href="{% url 'portfolio:portfolio_edit_view' portfolio.id %}" class="btn btn-secondary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Edit
+            </a>
+            <a href="{% url 'portfolio:transaction_create_view' portfolio.id %}" class="btn btn-primary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Transaction
+            </a>
         </div>
     </div>
 </div>
 
-<div class="container pb-5">
-    <!-- Display Messages -->
-    {% if messages %}
-    <div class="messages-container mb-4">
-        {% for message in messages %}
-        <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% elif message.tags == 'warning' %}warning{% else %}info{% endif %} alert-dismissible fade show" role="alert">
-            {% if message.tags == 'success' %}
-            <i class="bi bi-check-circle me-2"></i>
-            {% elif message.tags == 'error' %}
-            <i class="bi bi-exclamation-triangle me-2"></i>
-            {% elif message.tags == 'warning' %}
-            <i class="bi bi-exclamation-circle me-2"></i>
-            {% endif %}
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-        {% endfor %}
+<!-- Summary cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Current Value</div>
+        <div class="stat-value">${{ summary.summary.current_value|floatformat:2 }}</div>
     </div>
-    {% endif %}
-    
-    <!-- Summary Cards -->
-    <div class="summary-cards">
-        <div class="summary-card">
-            <div class="summary-card-label">Current Value</div>
-            <div class="summary-card-value">${{ summary.summary.current_value|floatformat:2 }}</div>
-        </div>
-        
-        <div class="summary-card">
-            <div class="summary-card-label">Total Invested</div>
-            <div class="summary-card-value">${{ summary.summary.total_invested|floatformat:2 }}</div>
-        </div>
-        
-        <div class="summary-card">
-            <div class="summary-card-label">Total Return</div>
-            <div class="summary-card-value {% if summary.summary.total_gain_loss >= 0 %}positive{% else %}negative{% endif %}">
-                ${{ summary.summary.total_gain_loss|floatformat:2 }}
-                <div style="font-size: 1rem;">({{ summary.summary.total_gain_loss_percentage|floatformat:2 }}%)</div>
-            </div>
-        </div>
-        
-        <div class="summary-card">
-            <div class="summary-card-label">Annual Dividend Income</div>
-            <div class="summary-card-value positive">${{ summary.summary.annual_dividend_income|floatformat:2 }}</div>
-        </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Invested</div>
+        <div class="stat-value">${{ summary.summary.total_invested|floatformat:2 }}</div>
     </div>
-    
-    <!-- Portfolio Metrics -->
-    <div class="positions-table mb-4">
-        <h3 class="table-title mb-3">Portfolio Metrics</h3>
-        <div class="metrics-grid">
-            <div class="metric-item">
-                <div class="metric-label">Positions</div>
-                <div class="metric-value">{{ summary.metrics.positions_count }}</div>
-            </div>
-            <div class="metric-item">
-                <div class="metric-label">Dividend Stocks</div>
-                <div class="metric-value">{{ summary.metrics.dividend_stocks_count }}</div>
-            </div>
-            <div class="metric-item">
-                <div class="metric-label">Weighted Yield</div>
-                <div class="metric-value">{{ summary.metrics.weighted_dividend_yield|floatformat:2 }}%</div>
-            </div>
-            <div class="metric-item">
-                <div class="metric-label">Avg YoC</div>
-                <div class="metric-value">{{ summary.summary.average_yield_on_cost|floatformat:2 }}%</div>
-            </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Return</div>
+        <div class="stat-value {% if summary.summary.total_gain_loss >= 0 %}positive{% else %}negative{% endif %}">
+            {% if summary.summary.total_gain_loss >= 0 %}+{% endif %}${{ summary.summary.total_gain_loss|floatformat:2 }}
         </div>
+        <div class="stat-sub">{{ summary.summary.total_gain_loss_percentage|floatformat:2 }}%</div>
     </div>
-    
-    <!-- Positions Table -->
-    <div class="positions-table">
-        <div class="table-header">
-            <h3 class="table-title">Positions</h3>
-            <a href="{% url 'portfolio:transaction_create_view' portfolio.id %}" class="btn-add-transaction">
-                <i class="bi bi-plus-circle"></i>Add Transaction
-            </a>
-        </div>
-        
-        {% if summary.positions %}
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Symbol</th>
-                            <th>Company</th>
-                            <th class="text-end">Shares</th>
-                            <th class="text-end">Avg Cost</th>
-                            <th class="text-end">Current Price</th>
-                            <th class="text-end">Value</th>
-                            <th class="text-end">Gain/Loss</th>
-                            <th class="text-end">Yield</th>
-                            <th class="text-end">YoC</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for position in summary.positions %}
-                        <tr class="position-row" onclick="window.location.href='{% url "portfolio:position_detail_view" portfolio.id position.symbol %}'">
-                            <td>
-                                <span class="position-symbol">{{ position.symbol }}</span>
-                                {% if position.pays_dividend %}
-                                    <span class="dividend-badge">DIV</span>
-                                {% endif %}
-                            </td>
-                            <td><span class="position-name">{{ position.company_name }}</span></td>
-                            <td class="text-end">{{ position.quantity|floatformat:2 }}</td>
-                            <td class="text-end">${{ position.average_cost|floatformat:2 }}</td>
-                            <td class="text-end">${{ position.current_price|floatformat:2 }}</td>
-                            <td class="text-end">${{ position.current_value|floatformat:2 }}</td>
-                            <td class="text-end {% if position.gain_loss >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                ${{ position.gain_loss|floatformat:2 }}
-                                <small>({{ position.gain_loss_percentage|floatformat:2 }}%)</small>
-                            </td>
-                            <td class="text-end">
-                                {% if position.current_yield %}
-                                    {{ position.current_yield|floatformat:2 }}%
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </td>
-                            <td class="text-end">
-                                {% if position.yield_on_cost %}
-                                    <strong>{{ position.yield_on_cost|floatformat:2 }}%</strong>
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        {% else %}
-            <div class="empty-positions">
-                <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-                <p class="mt-3">No positions yet. Add your first transaction to get started.</p>
-            </div>
-        {% endif %}
+    <div class="stat-card">
+        <div class="stat-label">Annual Dividends</div>
+        <div class="stat-value positive">${{ summary.summary.annual_dividend_income|floatformat:2 }}</div>
+        <div class="stat-sub">Weighted yield {{ summary.metrics.weighted_dividend_yield|floatformat:2 }}%</div>
     </div>
 </div>
+
+<!-- Main grid: positions table + allocation chart -->
+<div style="display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start;" class="detail-grid">
+
+    <!-- Positions table -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">
+                Positions
+                <span class="badge badge-neutral" style="margin-left:8px;">{{ summary.metrics.positions_count }}</span>
+            </span>
+            <a href="{% url 'portfolio:transaction_create_view' portfolio.id %}" class="btn btn-primary btn-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add
+            </a>
+        </div>
+
+        {% if summary.positions %}
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Company</th>
+                        <th class="text-right">Shares</th>
+                        <th class="text-right">Avg Cost</th>
+                        <th class="text-right">Price</th>
+                        <th class="text-right">Value</th>
+                        <th class="text-right">Return</th>
+                        <th class="text-right">Yield</th>
+                        <th class="text-right">YoC</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pos in summary.positions %}
+                    <tr onclick="window.location.href='{% url "portfolio:position_detail_view" portfolio.id pos.symbol %}'">
+                        <td>
+                            <span class="font-bold">{{ pos.symbol }}</span>
+                            {% if pos.pays_dividend %}
+                            <span class="badge badge-success" style="margin-left:4px;">DIV</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted text-sm">{{ pos.company_name }}</td>
+                        <td class="text-right">{{ pos.quantity|floatformat:2 }}</td>
+                        <td class="text-right">${{ pos.average_cost|floatformat:2 }}</td>
+                        <td class="text-right">${{ pos.current_price|floatformat:2 }}</td>
+                        <td class="text-right font-bold">${{ pos.current_value|floatformat:2 }}</td>
+                        <td class="text-right {% if pos.gain_loss >= 0 %}positive{% else %}negative{% endif %}">
+                            {% if pos.gain_loss >= 0 %}+{% endif %}{{ pos.gain_loss_percentage|floatformat:1 }}%
+                        </td>
+                        <td class="text-right">
+                            {% if pos.current_yield %}{{ pos.current_yield|floatformat:2 }}%{% else %}<span class="text-muted">—</span>{% endif %}
+                        </td>
+                        <td class="text-right font-bold">
+                            {% if pos.yield_on_cost %}{{ pos.yield_on_cost|floatformat:2 }}%{% else %}<span class="text-muted">—</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Portfolio metrics strip -->
+        <div class="card-footer" style="display:flex;gap:28px;flex-wrap:wrap;">
+            <div>
+                <div class="text-xs text-muted" style="margin-bottom:2px;">Positions</div>
+                <div class="font-bold text-sm">{{ summary.metrics.positions_count }}</div>
+            </div>
+            <div>
+                <div class="text-xs text-muted" style="margin-bottom:2px;">Dividend stocks</div>
+                <div class="font-bold text-sm">{{ summary.metrics.dividend_stocks_count }}</div>
+            </div>
+            <div>
+                <div class="text-xs text-muted" style="margin-bottom:2px;">Weighted yield</div>
+                <div class="font-bold text-sm">{{ summary.metrics.weighted_dividend_yield|floatformat:2 }}%</div>
+            </div>
+            <div>
+                <div class="text-xs text-muted" style="margin-bottom:2px;">Avg YoC</div>
+                <div class="font-bold text-sm">{{ summary.summary.average_yield_on_cost|floatformat:2 }}%</div>
+            </div>
+        </div>
+
+        {% else %}
+        <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+            <h3>No positions yet</h3>
+            <p>Add your first transaction to start tracking</p>
+            <a href="{% url 'portfolio:transaction_create_view' portfolio.id %}" class="btn btn-primary">Add Transaction</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Allocation chart -->
+    {% if summary.positions %}
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">Allocation</span>
+        </div>
+        <div class="card-body" style="padding:20px;">
+            <div class="chart-container" style="max-height:220px;">
+                <canvas id="allocationChart"></canvas>
+            </div>
+            <div style="margin-top:16px;display:flex;flex-direction:column;gap:6px;" id="chartLegend"></div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+{% if summary.positions %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const positions = [
+        {% for pos in summary.positions %}
+        { symbol: "{{ pos.symbol }}", value: {{ pos.current_value|floatformat:2 }} }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    const total = positions.reduce((s, p) => s + p.value, 0);
+    const palette = [
+        '#6366f1','#10b981','#f59e0b','#3b82f6','#ef4444',
+        '#8b5cf6','#06b6d4','#f97316','#84cc16','#ec4899',
+        '#14b8a6','#a855f7','#eab308','#0ea5e9','#f43f5e',
+    ];
+
+    const labels = positions.map(p => p.symbol);
+    const data   = positions.map(p => p.value);
+    const colors = positions.map((_, i) => palette[i % palette.length]);
+
+    new Chart(document.getElementById('allocationChart'), {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => {
+                            const pct = ((ctx.parsed / total) * 100).toFixed(1);
+                            return ` ${ctx.label}: $${ctx.parsed.toLocaleString('en-US', { minimumFractionDigits: 2 })} (${pct}%)`;
+                        }
+                    }
+                }
+            },
+            cutout: '68%',
+        }
+    });
+
+    // Custom legend
+    const legend = document.getElementById('chartLegend');
+    positions.forEach((p, i) => {
+        const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : '0.0';
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:0.8rem;';
+        row.innerHTML = `
+            <div style="display:flex;align-items:center;gap:6px;">
+                <span style="width:10px;height:10px;border-radius:50%;background:${colors[i]};flex-shrink:0;"></span>
+                <span style="font-weight:600;color:#0f172a;">${p.symbol}</span>
+            </div>
+            <span style="color:#64748b;">${pct}%</span>
+        `;
+        legend.appendChild(row);
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}

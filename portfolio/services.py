@@ -270,42 +270,21 @@ class PortfolioCalculationService:
         Returns:
             tuple: (success: bool, message: str, stock: Stock or None)
         """
-        from research.models import Stock, SymbolRedirect
+        from research.models import Stock
         from research.services import StockDataFetcher
         import logging
-        
+
         logger = logging.getLogger(__name__)
         original_symbol = symbol.upper()
         symbol = original_symbol
-        redirect_used = None
-        
+
         # Check if stock already exists
         try:
             stock = Stock.objects.get(symbol=symbol)
             return (True, f"Stock {symbol} found in database", stock)
         except Stock.DoesNotExist:
             pass
-        
-        # Check for symbol redirects (e.g., FB → META, ticker changes)
-        try:
-            redirect = SymbolRedirect.objects.get(old_symbol=symbol, is_active=True)
-            logger.info(f"Found redirect: {symbol} → {redirect.new_symbol} ({redirect.reason})")
-            symbol = redirect.new_symbol
-            redirect_used = redirect
-            
-            # Check if redirected symbol exists
-            try:
-                stock = Stock.objects.get(symbol=symbol)
-                message = f"Symbol {original_symbol} has changed to {symbol}"
-                if redirect.reason:
-                    message += f" ({redirect.reason})"
-                return (True, message, stock)
-            except Stock.DoesNotExist:
-                pass
-                
-        except SymbolRedirect.DoesNotExist:
-            pass
-        
+
         # Stock doesn't exist, try to fetch it
         logger.info(f"Stock {symbol} not found in database, attempting auto-fetch with full data...")
         
@@ -323,23 +302,10 @@ class PortfolioCalculationService:
                     f"metrics: {'✓' if result['financial_metrics_saved'] else '✗'})"
                 )
                 
-                # Build message
-                if redirect_used:
-                    message = f"Stock {original_symbol} redirected to {symbol}"
-                    if redirect_used.reason:
-                        message += f" ({redirect_used.reason})"
-                    message += " and added to database"
-                else:
-                    message = f"Stock {symbol} added to database"
-                    
-                return (True, message, stock)
+                return (True, f"Stock {symbol} added to database", stock)
             else:
-                # Stock not found - check if it's because symbol is invalid
                 error_msg = f"Stock symbol '{original_symbol}' not found."
-                
-                if redirect_used:
-                    error_msg = f"Symbol {original_symbol} redirects to {symbol}, but {symbol} was not found."
-                
+
                 if result.get('errors'):
                     error_msg += f" Errors: {', '.join(result['errors'])}"
                 else:

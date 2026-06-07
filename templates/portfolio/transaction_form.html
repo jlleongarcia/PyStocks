@@ -1,270 +1,133 @@
 {% extends 'base.html' %}
-{% load static %}
 
-{% block title %}Add Transaction - {{ portfolio.name }}{% endblock %}
-
-{% block extra_css %}
-<style>
-    body {
-        padding-top: 80px;
-    }
-    
-    .form-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 3rem 0 2rem;
-        margin-bottom: 3rem;
-    }
-    
-    .form-container {
-        max-width: 700px;
-        margin: 0 auto;
-        background: white;
-        border-radius: 12px;
-        padding: 2rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    
-    .form-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1.5rem;
-    }
-    
-    .form-group-full {
-        grid-column: 1 / -1;
-    }
-    
-    .form-group {
-        margin-bottom: 0;
-    }
-    
-    .form-label {
-        font-weight: 600;
-        color: #2d3748;
-        margin-bottom: 0.5rem;
-        display: block;
-        font-size: 0.875rem;
-    }
-    
-    .form-control, .form-select {
-        width: 100%;
-        padding: 0.75rem;
-        border: 2px solid #e2e8f0;
-        border-radius: 8px;
-        font-size: 1rem;
-        transition: border-color 0.2s;
-    }
-    
-    .form-control:focus, .form-select:focus {
-        outline: none;
-        border-color: #667eea;
-    }
-    
-    .transaction-type-tabs {
-        display: flex;
-        gap: 1rem;
-        margin-bottom: 2rem;
-    }
-    
-    .tab-btn {
-        flex: 1;
-        padding: 1rem;
-        border: 2px solid #e2e8f0;
-        background: white;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-    }
-    
-    .tab-btn.active {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-color: #667eea;
-    }
-    
-    .tab-btn i {
-        font-size: 1.25rem;
-    }
-    
-    .btn-submit {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        padding: 0.75rem 2rem;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        width: 100%;
-        transition: transform 0.2s;
-        margin-top: 1.5rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-    }
-    
-    .btn-submit:hover {
-        transform: translateY(-2px);
-    }
-    
-    .btn-submit i {
-        font-size: 1.25rem;
-    }
-    
-    .btn-cancel {
-        background: #e2e8f0;
-        color: #2d3748;
-        border: none;
-        padding: 0.75rem 2rem;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        width: 100%;
-        margin-top: 1rem;
-        text-decoration: none;
-        display: block;
-        text-align: center;
-    }
-    
-    .btn-cancel:hover {
-        background: #cbd5e0;
-        color: #2d3748;
-    }
-    
-    .help-text {
-        font-size: 0.75rem;
-        color: #718096;
-        margin-top: 0.25rem;
-    }
-</style>
-{% endblock %}
+{% block title %}Add Transaction — {{ portfolio.name }} — Py-Stocks{% endblock %}
 
 {% block content %}
-<div class="form-header">
-    <div class="container">
-        <a href="{% url 'portfolio:portfolio_detail_view' portfolio.id %}" class="text-white mb-2 d-inline-block" style="opacity: 0.8; display: inline-flex; align-items: center; gap: 0.5rem;">
-            <i class="bi bi-arrow-left"></i>Back to {{ portfolio.name }}
-        </a>
-        <h1 class="mb-0">Add Transaction</h1>
+<div class="page-header">
+    <div class="breadcrumb">
+        <a href="{% url 'portfolio:portfolio_list_view' %}">Portfolios</a>
+        <span class="breadcrumb-sep">/</span>
+        <a href="{% url 'portfolio:portfolio_detail_view' portfolio.id %}">{{ portfolio.name }}</a>
+        <span class="breadcrumb-sep">/</span>
+        <span>Add Transaction</span>
     </div>
+    <h1 class="page-title">Add Transaction</h1>
 </div>
 
-<div class="container pb-5">
-    <div class="form-container">
-        <!-- Display Messages -->
-        {% if messages %}
-        <div class="messages-container mb-4">
-            {% for message in messages %}
-            <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% else %}info{% endif %} alert-dismissible fade show" role="alert">
-                {% if message.tags == 'success' %}
-                <i class="bi bi-check-circle me-2"></i>
-                {% elif message.tags == 'error' %}
-                <i class="bi bi-exclamation-triangle me-2"></i>
-                {% endif %}
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-        
-        <form method="post" id="transactionForm">
+<div class="card" style="max-width:680px;">
+    <div class="card-body">
+        <form method="post" id="txForm">
             {% csrf_token %}
-            
-            <!-- Transaction Type Tabs -->
-            <div class="transaction-type-tabs">
-                <button type="button" class="tab-btn active" data-type="BUY" onclick="selectTransactionType('BUY')">
-                    <i class="bi bi-arrow-down-circle"></i>Buy
+
+            <!-- Buy / Sell toggle -->
+            <div class="type-tabs" role="group" aria-label="Transaction type">
+                <button type="button" class="type-tab active-buy" id="tabBuy" onclick="setType('BUY')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                    Buy
                 </button>
-                <button type="button" class="tab-btn" data-type="SELL" onclick="selectTransactionType('SELL')">
-                    <i class="bi bi-arrow-up-circle"></i>Sell
+                <button type="button" class="type-tab" id="tabSell" onclick="setType('SELL')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+                    Sell
                 </button>
             </div>
-            
-            <input type="hidden" name="transaction_type" id="transaction_type" value="BUY">
-            
-            <div class="form-grid">
-                <div class="form-group form-group-full">
-                    <label for="symbol" class="form-label">Stock Symbol <span class="text-danger">*</span></label>
-                    <input type="text" id="symbol" name="symbol" class="form-control" required 
-                           placeholder="e.g., AAPL, MSFT, KO" style="text-transform: uppercase;">
-                    <div class="help-text">Enter the ticker symbol of the stock</div>
-                </div>
-                
+            <input type="hidden" name="transaction_type" id="txType" value="BUY">
+
+            <!-- Symbol (full width) -->
+            <div class="form-group">
+                <label class="form-label" for="symbol">Ticker Symbol <span class="required">*</span></label>
+                <input type="text" id="symbol" name="symbol" class="form-control"
+                       placeholder="e.g. AAPL, KO, JNJ"
+                       style="text-transform:uppercase;font-weight:600;letter-spacing:0.04em;"
+                       required autofocus>
+                <p class="form-hint">Stock is fetched automatically if not in the database</p>
+            </div>
+
+            <div class="form-grid-2">
                 <div class="form-group">
-                    <label for="quantity" class="form-label">Quantity <span class="text-danger">*</span></label>
-                    <input type="number" id="quantity" name="quantity" class="form-control" required 
-                           step="0.0001" min="0.0001" placeholder="0.00">
-                    <div class="help-text">Number of shares</div>
+                    <label class="form-label" for="quantity">Shares <span class="required">*</span></label>
+                    <input type="number" id="quantity" name="quantity" class="form-control"
+                           step="0.0001" min="0.0001" placeholder="0.00" required>
                 </div>
-                
+
                 <div class="form-group">
-                    <label for="price" class="form-label">Price per Share <span class="text-danger">*</span></label>
-                    <input type="number" id="price" name="price" class="form-control" required 
-                           step="0.01" min="0.01" placeholder="0.00">
-                    <div class="help-text">Price in USD</div>
+                    <label class="form-label" for="price">Price per Share <span class="required">*</span></label>
+                    <input type="number" id="price" name="price" class="form-control"
+                           step="0.01" min="0.01" placeholder="0.00" required>
                 </div>
-                
+
                 <div class="form-group">
-                    <label for="transaction_date" class="form-label">Transaction Date <span class="text-danger">*</span></label>
-                    <input type="date" id="transaction_date" name="transaction_date" class="form-control" required 
-                           value="{{ today }}">
+                    <label class="form-label" for="transaction_date">Date <span class="required">*</span></label>
+                    <input type="date" id="transaction_date" name="transaction_date" class="form-control"
+                           value="{{ today }}" required>
                 </div>
-                
+
                 <div class="form-group">
-                    <label for="commission" class="form-label">Commission/Fees</label>
-                    <input type="number" id="commission" name="commission" class="form-control" 
+                    <label class="form-label" for="commission">Commission / Fees</label>
+                    <input type="number" id="commission" name="commission" class="form-control"
                            step="0.01" min="0" value="0.00" placeholder="0.00">
-                    <div class="help-text">Trading fees (optional)</div>
                 </div>
-                
-                <div class="form-group form-group-full">
-                    <label for="broker" class="form-label">Broker</label>
-                    <input type="text" id="broker" name="broker" class="form-control" 
-                           placeholder="e.g., Robinhood, Fidelity, Charles Schwab">
-                    <div class="help-text">Which brokerage you used (optional)</div>
+
+                <div class="form-group col-full">
+                    <label class="form-label" for="broker">Broker</label>
+                    <input type="text" id="broker" name="broker" class="form-control"
+                           placeholder="e.g. Interactive Brokers, Degiro, eToro">
                 </div>
-                
-                <div class="form-group form-group-full">
-                    <label for="notes" class="form-label">Notes</label>
-                    <textarea id="notes" name="notes" class="form-control" rows="3" 
-                              placeholder="Optional: Add notes about this transaction"></textarea>
+
+                <div class="form-group col-full">
+                    <label class="form-label" for="notes">Notes</label>
+                    <textarea id="notes" name="notes" class="form-control" rows="2"
+                              placeholder="Optional notes about this transaction"></textarea>
                 </div>
             </div>
-            
-            <button type="submit" class="btn-submit">
-                <i class="bi bi-check-circle"></i>Add Transaction
-            </button>
-            
-            <a href="{% url 'portfolio:portfolio_detail_view' portfolio.id %}" class="btn-cancel">Cancel</a>
+
+            <!-- Total preview -->
+            <div style="background:#f8fafc;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:0.85rem;color:var(--text-secondary);">Estimated total</span>
+                <span style="font-size:1.1rem;font-weight:700;color:var(--text-primary);" id="totalPreview">$0.00</span>
+            </div>
+
+            <div style="display:flex;gap:10px;">
+                <button type="submit" class="btn btn-primary btn-lg" style="flex:1;">
+                    Record Transaction
+                </button>
+                <a href="{% url 'portfolio:portfolio_detail_view' portfolio.id %}" class="btn btn-secondary btn-lg" style="flex:1;justify-content:center;">
+                    Cancel
+                </a>
+            </div>
         </form>
     </div>
 </div>
+{% endblock %}
 
+{% block extra_js %}
 <script>
-function selectTransactionType(type) {
-    // Update hidden input
-    document.getElementById('transaction_type').value = type;
-    
-    // Update tab visual state
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        if (btn.dataset.type === type) {
-            btn.classList.add('active');
-        } else {
-            btn.classList.remove('active');
-        }
-    });
+function setType(type) {
+    document.getElementById('txType').value = type;
+    const buy  = document.getElementById('tabBuy');
+    const sell = document.getElementById('tabSell');
+    if (type === 'BUY') {
+        buy.className  = 'type-tab active-buy';
+        sell.className = 'type-tab';
+    } else {
+        sell.className = 'type-tab active-sell';
+        buy.className  = 'type-tab';
+    }
 }
 
-// Auto-uppercase symbol input
-document.getElementById('symbol').addEventListener('input', function(e) {
+function updateTotal() {
+    const qty   = parseFloat(document.getElementById('quantity').value) || 0;
+    const price = parseFloat(document.getElementById('price').value) || 0;
+    const comm  = parseFloat(document.getElementById('commission').value) || 0;
+    const total = qty * price + comm;
+    document.getElementById('totalPreview').textContent = '$' + total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+document.getElementById('symbol').addEventListener('input', function (e) {
     e.target.value = e.target.value.toUpperCase();
+});
+
+['quantity', 'price', 'commission'].forEach(id => {
+    document.getElementById(id).addEventListener('input', updateTotal);
 });
 </script>
 {% endblock %}
