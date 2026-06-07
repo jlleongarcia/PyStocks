@@ -107,6 +107,7 @@ class FinancialMetrics(models.Model):
     dividend_growth_1y = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     dividend_growth_5y = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     chowder_number = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    beta = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True)
     pays_dividend = models.BooleanField(default=False)
 
     last_updated = models.DateTimeField(auto_now=True)

@@ -12,9 +12,7 @@
     <div class="page-header-inner">
         <div>
             <h1 class="page-title">{{ portfolio.name }}</h1>
-            {% if portfolio.description %}
-            <p class="page-subtitle">{{ portfolio.description }}</p>
-            {% endif %}
+            {% if portfolio.description %}<p class="page-subtitle">{{ portfolio.description }}</p>{% endif %}
         </div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
             <a href="{% url 'portfolio:portfolio_edit_view' portfolio.id %}" class="btn btn-secondary">
@@ -44,24 +42,26 @@
         <div class="stat-value {% if summary.summary.total_gain_loss >= 0 %}positive{% else %}negative{% endif %}">
             {% if summary.summary.total_gain_loss >= 0 %}+{% endif %}${{ summary.summary.total_gain_loss|floatformat:2 }}
         </div>
-        <div class="stat-sub">{{ summary.summary.total_gain_loss_percentage|floatformat:2 }}%</div>
+        <div class="stat-sub {% if summary.summary.total_gain_loss_percentage >= 0 %}positive{% else %}negative{% endif %}">
+            {% if summary.summary.total_gain_loss_percentage >= 0 %}+{% endif %}{{ summary.summary.total_gain_loss_percentage|floatformat:2 }}%
+        </div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Annual Dividends</div>
+        <div class="stat-label">Annual Income</div>
         <div class="stat-value positive">${{ summary.summary.annual_dividend_income|floatformat:2 }}</div>
-        <div class="stat-sub">Weighted yield {{ summary.metrics.weighted_dividend_yield|floatformat:2 }}%</div>
+        <div class="stat-sub">Wtd yield {{ summary.metrics.weighted_dividend_yield|floatformat:2 }}%</div>
     </div>
 </div>
 
-<!-- Main grid: positions table + allocation chart -->
-<div style="display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start;" class="detail-grid">
+<!-- Positions + Allocation chart -->
+<div class="detail-grid" style="margin-top:20px;">
 
-    <!-- Positions table -->
+    <!-- Positions card with tab switcher -->
     <div class="card">
         <div class="card-header">
             <span class="card-title">
                 Positions
-                <span class="badge badge-neutral" style="margin-left:8px;">{{ summary.metrics.positions_count }}</span>
+                <span class="badge badge-neutral" style="margin-left:6px;">{{ summary.metrics.positions_count }}</span>
             </span>
             <a href="{% url 'portfolio:transaction_create_view' portfolio.id %}" class="btn btn-primary btn-sm">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -70,75 +70,174 @@
         </div>
 
         {% if summary.positions %}
-        <div class="table-wrap">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Symbol</th>
-                        <th>Company</th>
-                        <th class="text-right">Shares</th>
-                        <th class="text-right">Avg Cost</th>
-                        <th class="text-right">Price</th>
-                        <th class="text-right">Value</th>
-                        <th class="text-right">Return</th>
-                        <th class="text-right">Yield</th>
-                        <th class="text-right">YoC</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for pos in summary.positions %}
-                    <tr onclick="window.location.href='{% url "portfolio:position_detail_view" portfolio.id pos.symbol %}'">
-                        <td>
-                            <span class="font-bold">{{ pos.symbol }}</span>
-                            {% if pos.pays_dividend %}
-                            <span class="badge badge-success" style="margin-left:4px;">DIV</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-muted text-sm">{{ pos.company_name }}</td>
-                        <td class="text-right">{{ pos.quantity|floatformat:2 }}</td>
-                        <td class="text-right">${{ pos.average_cost|floatformat:2 }}</td>
-                        <td class="text-right">${{ pos.current_price|floatformat:2 }}</td>
-                        <td class="text-right font-bold">${{ pos.current_value|floatformat:2 }}</td>
-                        <td class="text-right {% if pos.gain_loss >= 0 %}positive{% else %}negative{% endif %}">
-                            {% if pos.gain_loss >= 0 %}+{% endif %}{{ pos.gain_loss_percentage|floatformat:1 }}%
-                        </td>
-                        <td class="text-right">
-                            {% if pos.current_yield %}{{ pos.current_yield|floatformat:2 }}%{% else %}<span class="text-muted">—</span>{% endif %}
-                        </td>
-                        <td class="text-right font-bold">
-                            {% if pos.yield_on_cost %}{{ pos.yield_on_cost|floatformat:2 }}%{% else %}<span class="text-muted">—</span>{% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+
+        <!-- Tab switcher -->
+        <div class="tabs-row">
+            <button class="tab-btn active" data-tab="overview">Overview</button>
+            <button class="tab-btn" data-tab="income">Income</button>
+            <button class="tab-btn" data-tab="fundamentals">Fundamentals</button>
         </div>
 
-        <!-- Portfolio metrics strip -->
+        <!-- OVERVIEW TAB: Symbol · Company · Shares · Invested · Price · Value · Return% -->
+        <div class="tab-panel active" id="tab-overview">
+        <div class="table-wrap">
+        <table class="data-table">
+            <thead><tr>
+                <th>Symbol</th>
+                <th>Company</th>
+                <th class="text-right">Shares</th>
+                <th class="text-right">Invested</th>
+                <th class="text-right">Avg Cost</th>
+                <th class="text-right">Price</th>
+                <th class="text-right">Value</th>
+                <th class="text-right">Return</th>
+            </tr></thead>
+            <tbody>
+            {% for pos in summary.positions %}
+            <tr onclick="window.location.href='{% url "portfolio:position_detail_view" portfolio.id pos.symbol %}'">
+                <td>
+                    <span class="font-bold">{{ pos.symbol }}</span>
+                    {% if pos.pays_dividend %}<span class="badge badge-success" style="margin-left:4px;font-size:0.65rem;">DIV</span>{% endif %}
+                </td>
+                <td class="text-muted text-sm">{{ pos.company_name }}</td>
+                <td class="text-right">{{ pos.quantity|floatformat:4 }}</td>
+                <td class="text-right">${{ pos.total_invested|floatformat:2 }}</td>
+                <td class="text-right">${{ pos.average_cost|floatformat:2 }}</td>
+                <td class="text-right">${{ pos.current_price|floatformat:2 }}</td>
+                <td class="text-right font-bold">${{ pos.current_value|floatformat:2 }}</td>
+                <td class="text-right">
+                    <span class="return-pill {% if pos.gain_loss >= 0 %}positive{% else %}negative{% endif %}">
+                        {% if pos.gain_loss >= 0 %}+{% endif %}{{ pos.gain_loss_percentage|floatformat:2 }}%
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        </div>
+
+        <!-- INCOME TAB: Symbol · Company · Yield% · YoC% · Annual Income · Div Growth 1Y · Chowder# -->
+        <div class="tab-panel" id="tab-income">
+        <div class="table-wrap">
+        <table class="data-table">
+            <thead><tr>
+                <th>Symbol</th>
+                <th>Company</th>
+                <th class="text-right">Shares</th>
+                <th class="text-right">Yield%</th>
+                <th class="text-right">YoC%</th>
+                <th class="text-right">Annual Income</th>
+                <th class="text-right">Div Growth 1Y</th>
+                <th class="text-right">Chowder #</th>
+            </tr></thead>
+            <tbody>
+            {% for pos in summary.positions %}
+            <tr onclick="window.location.href='{% url "portfolio:position_detail_view" portfolio.id pos.symbol %}'">
+                <td>
+                    <span class="font-bold">{{ pos.symbol }}</span>
+                    {% if pos.pays_dividend %}<span class="badge badge-success" style="margin-left:4px;font-size:0.65rem;">DIV</span>{% endif %}
+                </td>
+                <td class="text-muted text-sm">{{ pos.company_name }}</td>
+                <td class="text-right">{{ pos.quantity|floatformat:4 }}</td>
+                <td class="text-right">
+                    {% if pos.current_yield %}<span class="positive">{{ pos.current_yield|floatformat:2 }}%</span>{% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-right font-bold">
+                    {% if pos.yield_on_cost %}<span class="positive">{{ pos.yield_on_cost|floatformat:2 }}%</span>{% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-right">
+                    {% if pos.annual_dividend_income %}<span class="positive">${{ pos.annual_dividend_income|floatformat:2 }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-right">
+                    {% if pos.dividend_growth_1y %}
+                        <span class="{% if pos.dividend_growth_1y >= 0 %}positive{% else %}negative{% endif %}">
+                            {% if pos.dividend_growth_1y >= 0 %}+{% endif %}{{ pos.dividend_growth_1y|floatformat:2 }}%
+                        </span>
+                    {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-right font-bold">
+                    {% if pos.chowder_number %}
+                        <span class="{% if pos.chowder_number >= 12 %}positive{% elif pos.chowder_number >= 8 %}text-muted{% else %}negative{% endif %}">
+                            {{ pos.chowder_number|floatformat:2 }}
+                        </span>
+                    {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        </div>
+
+        <!-- FUNDAMENTALS TAB: Symbol · Company · P/E · Payout% · Beta · 52W High · 52W Low -->
+        <div class="tab-panel" id="tab-fundamentals">
+        <div class="table-wrap">
+        <table class="data-table">
+            <thead><tr>
+                <th>Symbol</th>
+                <th>Company</th>
+                <th class="text-right">P/E</th>
+                <th class="text-right">Payout%</th>
+                <th class="text-right">Beta</th>
+                <th class="text-right">52W High</th>
+                <th class="text-right">52W Low</th>
+                <th class="text-right">vs High</th>
+            </tr></thead>
+            <tbody>
+            {% for pos in summary.positions %}
+            <tr onclick="window.location.href='{% url "portfolio:position_detail_view" portfolio.id pos.symbol %}'">
+                <td>
+                    <span class="font-bold">{{ pos.symbol }}</span>
+                    {% if pos.pays_dividend %}<span class="badge badge-success" style="margin-left:4px;font-size:0.65rem;">DIV</span>{% endif %}
+                </td>
+                <td class="text-muted text-sm">{{ pos.company_name }}</td>
+                <td class="text-right">
+                    {% if pos.trailing_pe %}{{ pos.trailing_pe|floatformat:1 }}{% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-right">
+                    {% if pos.payout_ratio %}
+                        <span class="{% if pos.payout_ratio > 80 %}negative{% elif pos.payout_ratio > 60 %}text-muted{% else %}positive{% endif %}">
+                            {{ pos.payout_ratio|floatformat:1 }}%
+                        </span>
+                    {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-right">
+                    {% if pos.beta %}{{ pos.beta|floatformat:2 }}{% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-right">
+                    {% if pos.high_52w %}<span class="text-muted">${{ pos.high_52w|floatformat:2 }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-right">
+                    {% if pos.low_52w %}<span class="text-muted">${{ pos.low_52w|floatformat:2 }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-right">
+                    {% if pos.high_52w and pos.current_price %}
+                        {% with pct=pos.current_price|stringformat:"f" %}
+                        <span class="negative">{{ pos.current_price|floatformat:0 }}</span>
+                        {% endwith %}
+                        {# inline calc not possible in Django templates; JS fills this #}
+                        <span class="vs-high-pct text-muted text-sm" data-price="{{ pos.current_price }}" data-high="{{ pos.high_52w }}">—</span>
+                    {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        </div>
+
+        <!-- Footer metrics strip -->
         <div class="card-footer" style="display:flex;gap:28px;flex-wrap:wrap;">
-            <div>
-                <div class="text-xs text-muted" style="margin-bottom:2px;">Positions</div>
-                <div class="font-bold text-sm">{{ summary.metrics.positions_count }}</div>
-            </div>
-            <div>
-                <div class="text-xs text-muted" style="margin-bottom:2px;">Dividend stocks</div>
-                <div class="font-bold text-sm">{{ summary.metrics.dividend_stocks_count }}</div>
-            </div>
-            <div>
-                <div class="text-xs text-muted" style="margin-bottom:2px;">Weighted yield</div>
-                <div class="font-bold text-sm">{{ summary.metrics.weighted_dividend_yield|floatformat:2 }}%</div>
-            </div>
-            <div>
-                <div class="text-xs text-muted" style="margin-bottom:2px;">Avg YoC</div>
-                <div class="font-bold text-sm">{{ summary.summary.average_yield_on_cost|floatformat:2 }}%</div>
-            </div>
+            <div><div class="text-xs text-muted">Positions</div><div class="font-bold text-sm">{{ summary.metrics.positions_count }}</div></div>
+            <div><div class="text-xs text-muted">Dividend stocks</div><div class="font-bold text-sm">{{ summary.metrics.dividend_stocks_count }}</div></div>
+            <div><div class="text-xs text-muted">Wtd yield</div><div class="font-bold text-sm">{{ summary.metrics.weighted_dividend_yield|floatformat:2 }}%</div></div>
+            <div><div class="text-xs text-muted">Avg YoC</div><div class="font-bold text-sm">{{ summary.summary.average_yield_on_cost|floatformat:2 }}%</div></div>
         </div>
 
         {% else %}
         <div class="empty-state">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-            </svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
             <h3>No positions yet</h3>
             <p>Add your first transaction to start tracking</p>
             <a href="{% url 'portfolio:transaction_create_view' portfolio.id %}" class="btn btn-primary">Add Transaction</a>
@@ -149,9 +248,7 @@
     <!-- Allocation chart -->
     {% if summary.positions %}
     <div class="card">
-        <div class="card-header">
-            <span class="card-title">Allocation</span>
-        </div>
+        <div class="card-header"><span class="card-title">Allocation</span></div>
         <div class="card-body" style="padding:20px;">
             <div class="chart-container" style="max-height:220px;">
                 <canvas id="allocationChart"></canvas>
@@ -163,6 +260,71 @@
 
 </div>
 
+<!-- Transaction Ledger -->
+{% if ledger %}
+<div class="card" style="margin-top:20px;">
+    <div class="card-header">
+        <span class="card-title">
+            Transaction Ledger
+            <span class="badge badge-neutral" style="margin-left:6px;">{{ ledger|length }}</span>
+        </span>
+        <div class="ledger-legend">
+            <span class="tx-badge buy">Buy</span>
+            <span class="tx-badge sell">Sell</span>
+            <span class="tx-badge div">Dividend</span>
+            <span class="tx-badge spof">Spin-Off</span>
+            <span class="tx-badge int">Interest</span>
+        </div>
+    </div>
+    <div class="table-wrap">
+    <table class="data-table">
+        <thead><tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Symbol</th>
+            <th class="text-right">Price / Share</th>
+            <th class="text-right">Quantity</th>
+            <th class="text-right">Commission</th>
+            <th class="text-right">Total</th>
+            <th class="text-right">Yield / P&amp;L</th>
+        </tr></thead>
+        <tbody>
+        {% for entry in ledger %}
+        <tr class="ledger-row-{{ entry.type }}">
+            <td class="text-sm text-muted">{{ entry.date|date:"d/m/Y" }}</td>
+            <td><span class="tx-badge {{ entry.type }}">{{ entry.label }}</span></td>
+            <td class="font-bold">{{ entry.symbol }}</td>
+            <td class="text-right text-sm">
+                {% if entry.price is not None %}${{ entry.price|floatformat:2 }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-right text-sm">
+                {% if entry.quantity is not None %}{{ entry.quantity|floatformat:4 }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-right text-sm">
+                {% if entry.commission %}
+                    <span class="negative">${{ entry.commission|floatformat:2 }}</span>
+                {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td class="text-right font-bold">
+                {% if entry.type == 'buy' or entry.type == 'spof' %}
+                    <span class="negative">${{ entry.total|floatformat:2 }}</span>
+                {% else %}
+                    <span class="positive">${{ entry.total|floatformat:2 }}</span>
+                {% endif %}
+            </td>
+            <td class="text-right font-bold">
+                {% if entry.extra %}
+                    <span class="{{ entry.extra_class }}">{{ entry.extra }}</span>
+                {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+{% endif %}
+
 {% endblock %}
 
 {% block extra_js %}
@@ -170,6 +332,28 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 (function () {
+    // ── Tab switcher ──────────────────────────────────────────────
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+        });
+    });
+
+    // ── 52W vs-high percentage (Fundamentals tab) ─────────────────
+    document.querySelectorAll('.vs-high-pct').forEach(el => {
+        const price = parseFloat(el.dataset.price);
+        const high  = parseFloat(el.dataset.high);
+        if (high > 0) {
+            const pct = ((price - high) / high * 100).toFixed(1);
+            el.textContent = pct + '%';
+            el.className = 'vs-high-pct text-sm ' + (pct >= 0 ? 'positive' : 'negative');
+        }
+    });
+
+    // ── Allocation doughnut ───────────────────────────────────────
     const positions = [
         {% for pos in summary.positions %}
         { symbol: "{{ pos.symbol }}", value: {{ pos.current_value|floatformat:2 }} }{% if not forloop.last %},{% endif %}
@@ -208,7 +392,6 @@
         }
     });
 
-    // Custom legend
     const legend = document.getElementById('chartLegend');
     positions.forEach((p, i) => {
         const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : '0.0';

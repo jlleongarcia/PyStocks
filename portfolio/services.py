@@ -2,9 +2,10 @@
 Portfolio calculation services
 Handles complex portfolio analytics and calculations
 """
+from datetime import date, timedelta
 from decimal import Decimal
-from django.db.models import Sum, Q
-from research.models import FinancialMetrics, Stock
+from django.db.models import Max, Min, Sum, Q
+from research.models import FinancialMetrics, HistoricalPrice, Stock
 
 
 class PortfolioCalculationService:
@@ -42,12 +43,21 @@ class PortfolioCalculationService:
             }
         }
         
+        # Bulk 52W high/low query — single DB hit for all symbols
+        symbols = [p.symbol for p in positions]
+        one_year_ago = date.today() - timedelta(days=365)
+        price_ranges = HistoricalPrice.objects.filter(
+            stock__symbol__in=symbols,
+            date__gte=one_year_ago,
+        ).values('stock__symbol').annotate(high_52w=Max('high'), low_52w=Min('low'))
+        price_range_map = {r['stock__symbol']: r for r in price_ranges}
+
         # Calculate average YoC and build position details
         total_cost = 0
         weighted_yoc_sum = 0
-        
+
         for position in positions:
-            position_data = PortfolioCalculationService.get_position_detail(position)
+            position_data = PortfolioCalculationService.get_position_detail(position, price_range_map)
             summary['positions'].append(position_data)
             
             # Calculate weighted YoC
@@ -63,25 +73,24 @@ class PortfolioCalculationService:
         return summary
     
     @staticmethod
-    def get_position_detail(position):
+    def get_position_detail(position, price_range_map=None):
         """
-        Get detailed information for a single position
-        
+        Get detailed information for a single position.
+
         Args:
             position: Position instance
-            
-        Returns:
-            dict: Position details with metrics
+            price_range_map: optional dict {symbol: {high_52w, low_52w}} pre-computed by caller
         """
         metrics = position.get_current_metrics()
-        
-        # Get stock info
+
         try:
             stock = Stock.objects.get(symbol=position.symbol)
             company_name = stock.name
         except Stock.DoesNotExist:
             company_name = position.symbol
-        
+
+        pr = (price_range_map or {}).get(position.symbol, {})
+
         position_data = {
             'symbol': position.symbol,
             'company_name': company_name,
@@ -97,9 +106,19 @@ class PortfolioCalculationService:
             'yield_on_cost': position.yield_on_cost,
             'annual_dividend_income': position.annual_dividend_income,
             'pays_dividend': False,
+            # Fundamentals
+            'trailing_pe': None,
+            'forward_pe': None,
+            'payout_ratio': None,
+            'fcf_payout_ratio': None,
+            'dividend_growth_1y': None,
+            'dividend_growth_5y': None,
+            'chowder_number': None,
+            'beta': None,
+            'high_52w': float(pr['high_52w']) if pr.get('high_52w') else None,
+            'low_52w': float(pr['low_52w']) if pr.get('low_52w') else None,
         }
-        
-        # Add financial metrics if available
+
         if metrics:
             position_data['pays_dividend'] = metrics.pays_dividend
             position_data['current_yield'] = float(metrics.dividend_yield) if metrics.dividend_yield else None
@@ -110,7 +129,8 @@ class PortfolioCalculationService:
             position_data['dividend_growth_1y'] = float(metrics.dividend_growth_1y) if metrics.dividend_growth_1y else None
             position_data['dividend_growth_5y'] = float(metrics.dividend_growth_5y) if metrics.dividend_growth_5y else None
             position_data['chowder_number'] = float(metrics.chowder_number) if metrics.chowder_number else None
-        
+            position_data['beta'] = float(metrics.beta) if metrics.beta else None
+
         return position_data
     
     @staticmethod

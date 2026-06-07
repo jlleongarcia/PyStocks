@@ -115,11 +115,14 @@ class Transaction(models.Model):
     TRANSACTION_TYPES = [
         ('BUY', 'Buy'),
         ('SELL', 'Sell'),
+        ('DIV', 'Dividend'),
+        ('SPOF', 'Spin-Off'),
+        ('INT', 'Interest'),
     ]
-    
+
     portfolio = models.ForeignKey(Portfolio, on_delete=models.CASCADE, related_name='transactions')
-    symbol = models.CharField(max_length=10)
-    transaction_type = models.CharField(max_length=4, choices=TRANSACTION_TYPES)
+    symbol = models.CharField(max_length=10, blank=True)
+    transaction_type = models.CharField(max_length=8, choices=TRANSACTION_TYPES)
     quantity = models.DecimalField(max_digits=15, decimal_places=4)
     price = models.DecimalField(max_digits=15, decimal_places=4)
     commission = models.DecimalField(max_digits=10, decimal_places=2, default=0)

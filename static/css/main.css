@@ -904,6 +904,80 @@ textarea.form-control { resize: vertical; min-height: 90px; }
 
 .tx-badge.buy  { background: var(--positive-bg); color: #065f46; }
 .tx-badge.sell { background: var(--negative-bg); color: #991b1b; }
+.tx-badge.div  { background: #dcfce7; color: #14532d; }
+.tx-badge.spof { background: #fef3c7; color: #92400e; }
+.tx-badge.int  { background: #f1f5f9; color: #475569; }
+
+/* ============================================
+   Tab switcher (positions table)
+   ============================================ */
+.tabs-row {
+    display: flex;
+    gap: 4px;
+    padding: 0 20px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.tab-btn {
+    padding: 6px 16px;
+    border: 1px solid var(--border);
+    background: transparent;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.tab-btn:hover { background: var(--content-bg); color: var(--text-primary); }
+.tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ============================================
+   Positions table — return pill + row colors
+   ============================================ */
+.return-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+.return-pill.positive { background: var(--positive-bg); color: #065f46; }
+.return-pill.negative { background: var(--negative-bg); color: #991b1b; }
+
+/* ============================================
+   Ledger row tints + legend
+   ============================================ */
+.ledger-row-buy  td:first-child { border-left: 3px solid var(--positive); }
+.ledger-row-sell td:first-child { border-left: 3px solid var(--negative); }
+.ledger-row-div  td:first-child { border-left: 3px solid #22c55e; }
+.ledger-row-spof td:first-child { border-left: 3px solid #f59e0b; }
+.ledger-row-int  td:first-child { border-left: 3px solid #94a3b8; }
+
+.ledger-legend {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* ============================================
+   Portfolio detail two-column grid
+   ============================================ */
+.detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 20px;
+    align-items: start;
+}
+
+@media (max-width: 1100px) {
+    .detail-grid { grid-template-columns: 1fr; }
+}
 
 /* ============================================
    Chart container

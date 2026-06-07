@@ -332,13 +332,82 @@ def portfolio_list_view(request):
 def portfolio_detail_view(request, pk):
     """Frontend view: Portfolio detail with summary"""
     portfolio = get_object_or_404(Portfolio, pk=pk, user=request.user)
-    
-    # Get comprehensive summary
+
     summary = PortfolioCalculationService.calculate_portfolio_summary(portfolio)
-    
+
+    # Build unified chronological ledger (transactions + dividend receipts)
+    position_avg = {p.symbol: float(p.average_cost) for p in portfolio.positions.all()}
+    ledger = []
+
+    for tx in portfolio.transactions.order_by('-transaction_date'):
+        qty = float(tx.quantity)
+        price = float(tx.price)
+        commission = float(tx.commission)
+        tx_date = tx.transaction_date.date() if hasattr(tx.transaction_date, 'date') else tx.transaction_date
+
+        if tx.transaction_type == 'BUY':
+            ledger.append({
+                'date': tx_date, 'type': 'buy', 'label': 'Buy',
+                'symbol': tx.symbol,
+                'price': price, 'quantity': qty,
+                'commission': -commission if commission else 0,
+                'total': -(price * qty + commission),
+                'extra': f"{float(tx.buy_yield):.2f}%" if tx.buy_yield else None,
+                'extra_class': 'positive',
+            })
+        elif tx.transaction_type == 'SELL':
+            avg = position_avg.get(tx.symbol)
+            pnl = round((price - avg) * qty - commission, 2) if avg else None
+            ledger.append({
+                'date': tx_date, 'type': 'sell', 'label': 'Sell',
+                'symbol': tx.symbol,
+                'price': price, 'quantity': qty,
+                'commission': -commission if commission else 0,
+                'total': price * qty - commission,
+                'extra': f"${pnl:+,.2f}" if pnl is not None else None,
+                'extra_class': 'positive' if (pnl or 0) >= 0 else 'negative',
+            })
+        elif tx.transaction_type == 'DIV':
+            ledger.append({
+                'date': tx_date, 'type': 'div', 'label': 'Dividend',
+                'symbol': tx.symbol,
+                'price': price, 'quantity': qty,
+                'commission': -commission if commission else 0,
+                'total': price * qty - commission,
+                'extra': None, 'extra_class': None,
+            })
+        elif tx.transaction_type == 'SPOF':
+            ledger.append({
+                'date': tx_date, 'type': 'spof', 'label': 'Spin-Off',
+                'symbol': tx.symbol,
+                'price': price, 'quantity': qty,
+                'commission': 0, 'total': price * qty,
+                'extra': None, 'extra_class': None,
+            })
+        elif tx.transaction_type == 'INT':
+            ledger.append({
+                'date': tx_date, 'type': 'int', 'label': 'Interest',
+                'symbol': tx.symbol or '—',
+                'price': None, 'quantity': None,
+                'commission': 0, 'total': price,
+                'extra': None, 'extra_class': None,
+            })
+
+    for div in portfolio.dividends.order_by('-payment_date'):
+        ledger.append({
+            'date': div.payment_date, 'type': 'div', 'label': 'Dividend',
+            'symbol': div.symbol,
+            'price': None, 'quantity': None,
+            'commission': 0, 'total': float(div.amount),
+            'extra': None, 'extra_class': None,
+        })
+
+    ledger.sort(key=lambda x: x['date'], reverse=True)
+
     return render(request, 'portfolio/portfolio_detail.html', {
         'portfolio': portfolio,
-        'summary': summary
+        'summary': summary,
+        'ledger': ledger,
     })
 
 
