@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
-from datetime import datetime
+from datetime import datetime, date as date_type
 
 from .models import Portfolio, Transaction, Position, Dividend
 from .serializers import (
@@ -417,16 +417,19 @@ def portfolio_detail_view(request, pk):
                 'extra': None, 'extra_class': None,
             })
 
-    for div in portfolio.dividends.order_by('-payment_date'):
+    for div in portfolio.dividends.all():
+        effective_date = div.payment_date or div.ex_dividend_date
+        qty = float(div.quantity) if div.quantity else None
+        div_per_share = round(float(div.amount) / qty, 4) if qty else None
         ledger.append({
-            'date': div.payment_date, 'type': 'div', 'label': 'Dividend',
+            'date': effective_date, 'type': 'div', 'label': 'Dividend',
             'symbol': div.symbol,
-            'price': None, 'quantity': None,
+            'price': div_per_share, 'quantity': qty,
             'commission': 0, 'total': float(div.amount),
             'extra': None, 'extra_class': None,
         })
 
-    ledger.sort(key=lambda x: x['date'], reverse=True)
+    ledger.sort(key=lambda x: x['date'] or date_type.min, reverse=True)
 
     return render(request, 'portfolio/portfolio_detail.html', {
         'portfolio': portfolio,

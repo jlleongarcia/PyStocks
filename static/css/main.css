@@ -910,7 +910,7 @@ textarea.form-control { resize: vertical; min-height: 90px; }
 
 .tx-badge.buy  { background: var(--positive-bg); color: #065f46; }
 .tx-badge.sell { background: var(--negative-bg); color: #991b1b; }
-.tx-badge.div  { background: #dcfce7; color: #14532d; }
+.tx-badge.div  { background: #dbeafe; color: #1e40af; }
 .tx-badge.spof { background: #fef3c7; color: #92400e; }
 .tx-badge.int  { background: #f1f5f9; color: #475569; }
 .tx-badge.dep  { background: #ede9fe; color: #4c1d95; }

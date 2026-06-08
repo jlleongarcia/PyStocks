@@ -276,31 +276,31 @@ class PortfolioCalculationService:
     @staticmethod
     def calculate_dividend_income_history(portfolio, year=None):
         """
-        Calculate dividend income history for a portfolio
-        
-        Args:
-            portfolio: Portfolio instance
-            year: Optional year to filter (default: current year)
-            
-        Returns:
-            dict: Dividend income history by month
+        Calculate dividend income history for a portfolio.
+
+        Uses payment_date when available, falls back to ex_dividend_date for
+        auto-recorded entries where payment_date is null.
         """
         from datetime import datetime
         from django.db.models import Sum
-        from django.db.models.functions import TruncMonth
-        
-        dividends = portfolio.dividends.all()
-        
+        from django.db.models.functions import Coalesce, TruncMonth
+
+        # Annotate effective date: payment_date if known, else ex_dividend_date
+        dividends = portfolio.dividends.annotate(
+            effective_date=Coalesce('payment_date', 'ex_dividend_date')
+        )
+
         if year:
-            dividends = dividends.filter(payment_date__year=year)
-        
-        # Group by month
-        monthly_data = dividends.annotate(
-            month=TruncMonth('payment_date')
-        ).values('month').annotate(
-            total=Sum('amount')
-        ).order_by('month')
-        
+            dividends = dividends.filter(effective_date__year=year)
+
+        monthly_data = (
+            dividends
+            .annotate(month=TruncMonth('effective_date'))
+            .values('month')
+            .annotate(total=Sum('amount'))
+            .order_by('month')
+        )
+
         return {
             'year': year or datetime.now().year,
             'monthly_income': [
@@ -452,7 +452,8 @@ class PortfolioCalculationService:
                 portfolio=portfolio,
                 symbol=symbol,
                 amount=total_amount,
-                payment_date=ex_date,      # ex-date as proxy; user can correct
+                quantity=shares,
+                payment_date=None,         # unknown; ex_dividend_date is the authoritative date
                 ex_dividend_date=ex_date,
                 notes='Auto-recorded',
             )
