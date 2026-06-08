@@ -894,6 +894,58 @@ textarea.form-control { resize: vertical; min-height: 90px; }
 .pcs-value.positive { color: var(--positive); }
 .pcs-value.negative { color: var(--negative); }
 
+.card-menu { position: relative; flex-shrink: 0; }
+
+.card-menu-btn {
+    background: none;
+    border: none;
+    padding: 6px 8px;
+    cursor: pointer;
+    color: var(--text-muted);
+    border-radius: 6px;
+    line-height: 1;
+    font-size: 1.1rem;
+    letter-spacing: 0.05em;
+    transition: background 0.15s, color 0.15s;
+}
+.card-menu-btn:hover { background: var(--content-bg); color: var(--text-secondary); }
+
+.card-menu-dropdown {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.1);
+    min-width: 130px;
+    z-index: 200;
+    overflow: hidden;
+}
+.card-menu-dropdown.open { display: block; }
+
+.card-menu-dropdown a,
+.card-menu-dropdown button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    text-decoration: none;
+    background: none;
+    border: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+.card-menu-dropdown a:hover,
+.card-menu-dropdown button:hover { background: var(--content-bg); }
+.card-menu-dropdown .menu-item-delete { color: var(--negative); }
+.card-menu-dropdown .menu-item-delete:hover { background: #fef2f2; }
+
 /* ============================================
    Transaction badge
    ============================================ */

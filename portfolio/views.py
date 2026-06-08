@@ -574,6 +574,17 @@ def portfolio_sync_dividends(request, pk):
 
 
 @login_required
+@require_http_methods(["POST"])
+def portfolio_delete_view(request, pk):
+    """Delete a portfolio and all its data after user confirmation."""
+    portfolio = get_object_or_404(Portfolio, pk=pk, user=request.user)
+    name = portfolio.name
+    portfolio.delete()
+    messages.success(request, f'Portfolio "{name}" has been deleted.')
+    return redirect('portfolio:portfolio_list_view')
+
+
+@login_required
 def position_detail_view(request, portfolio_id, symbol):
     """Frontend view: Position detail with transactions"""
     portfolio = get_object_or_404(Portfolio, pk=portfolio_id, user=request.user)
