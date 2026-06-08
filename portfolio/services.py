@@ -21,25 +21,24 @@ class PortfolioCalculationService:
         """
         positions = portfolio.positions.select_related().all()
         
-        # Initialize summary data
+        # Initialize summary — totals are recomputed after positions are built
+        # to ensure they use fresh HistoricalPrice data, not the stale current_price field
         summary = {
             'portfolio_id': portfolio.id,
             'portfolio_name': portfolio.name,
             'summary': {
-                'total_invested': float(portfolio.total_invested),
-                'current_value': float(portfolio.total_value),
-                'total_gain_loss': float(portfolio.total_return),
-                'total_gain_loss_percentage': float(portfolio.total_return_percentage),
+                'total_invested': 0,
+                'current_value': 0,
+                'total_gain_loss': 0,
+                'total_gain_loss_percentage': 0,
                 'dividend_income_ytd': float(portfolio.total_dividend_income),
-                'annual_dividend_income': float(portfolio.annual_dividend_income),
+                'annual_dividend_income': 0,
                 'average_yield_on_cost': 0,
             },
             'positions': [],
             'metrics': {
                 'positions_count': positions.count(),
-                'dividend_stocks_count': portfolio.dividend_positions_count,
-                'non_dividend_stocks_count': positions.count() - portfolio.dividend_positions_count,
-                'weighted_dividend_yield': float(portfolio.weighted_dividend_yield),
+                'dividend_stocks_count': 0,
             }
         }
         
@@ -67,24 +66,35 @@ class PortfolioCalculationService:
                 for row in HistoricalPrice.objects.filter(price_filter).values('stock__symbol', 'close'):
                     market_price_map[row['stock__symbol']] = float(row['close'])
 
-        # Calculate average YoC and build position details
-        total_cost = 0
+        # Build positions with fresh prices
         weighted_yoc_sum = 0
+        weighted_yoc_cost = 0
 
         for position in positions:
             position_data = PortfolioCalculationService.get_position_detail(position, price_range_map, market_price_map)
             summary['positions'].append(position_data)
-            
-            # Calculate weighted YoC
-            if position_data.get('yield_on_cost'):
-                position_cost = float(position.total_cost)
-                total_cost += position_cost
-                weighted_yoc_sum += position_cost * position_data['yield_on_cost']
-        
-        # Calculate average YoC
-        if total_cost > 0:
-            summary['summary']['average_yield_on_cost'] = round(weighted_yoc_sum / total_cost, 2)
-        
+
+        # Recompute all summary totals from fresh position data (no stale current_price)
+        total_invested = sum(p['total_invested'] for p in summary['positions'])
+        current_value  = sum(p['current_value']  for p in summary['positions'])
+        gain_loss      = current_value - total_invested
+        gain_loss_pct  = (gain_loss / total_invested * 100) if total_invested > 0 else 0
+        annual_div     = sum(p['annual_dividend_income'] or 0 for p in summary['positions'])
+        div_count      = sum(1 for p in summary['positions'] if p.get('pays_dividend'))
+
+        for p in summary['positions']:
+            if p.get('yield_on_cost') and p['total_invested'] > 0:
+                weighted_yoc_cost += p['total_invested']
+                weighted_yoc_sum  += p['total_invested'] * p['yield_on_cost']
+
+        summary['summary']['total_invested']           = round(total_invested, 2)
+        summary['summary']['current_value']            = round(current_value, 2)
+        summary['summary']['total_gain_loss']          = round(gain_loss, 2)
+        summary['summary']['total_gain_loss_percentage'] = round(gain_loss_pct, 2)
+        summary['summary']['annual_dividend_income']   = round(annual_div, 2)
+        summary['summary']['average_yield_on_cost']    = round(weighted_yoc_sum / weighted_yoc_cost, 2) if weighted_yoc_cost > 0 else 0
+        summary['metrics']['dividend_stocks_count']    = div_count
+
         return summary
     
     @staticmethod

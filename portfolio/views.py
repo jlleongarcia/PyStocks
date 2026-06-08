@@ -336,7 +336,7 @@ def portfolio_detail_view(request, pk):
     summary = PortfolioCalculationService.calculate_portfolio_summary(portfolio)
 
     # Build unified chronological ledger (transactions + dividend receipts)
-    position_avg = {p.symbol: float(p.average_cost) for p in portfolio.positions.all()}
+    position_avg = {p['symbol']: p['average_cost'] for p in summary['positions']}
     ledger = []
 
     for tx in portfolio.transactions.order_by('-transaction_date'):

@@ -936,6 +936,18 @@ textarea.form-control { resize: vertical; min-height: 90px; }
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
 
+.tab-summary-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.tab-summary-sep { color: var(--border); }
+
 /* ============================================
    Positions table — return pill + row colors
    ============================================ */

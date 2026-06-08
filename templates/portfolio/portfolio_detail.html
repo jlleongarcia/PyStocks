@@ -38,7 +38,7 @@
         <div class="stat-value">${{ summary.summary.total_invested|floatformat:2 }}</div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Total Return</div>
+        <div class="stat-label">Unrealized P&amp;L</div>
         <div class="stat-value">
             {% if summary.summary.total_gain_loss >= 0 %}+{% endif %}${{ summary.summary.total_gain_loss|floatformat:2 }}
         </div>
@@ -47,9 +47,8 @@
         </div>
     </div>
     <div class="stat-card">
-        <div class="stat-label">Annual Income</div>
+        <div class="stat-label">Annual Dividend Income</div>
         <div class="stat-value">${{ summary.summary.annual_dividend_income|floatformat:2 }}</div>
-        <div class="stat-sub">Wtd yield {{ summary.metrics.weighted_dividend_yield|floatformat:2 }}%</div>
     </div>
 </div>
 
@@ -115,8 +114,14 @@
         </div>
         </div>
 
-        <!-- INCOME TAB: Symbol · Company · Yield% · YoC% · Annual Income · Div Growth 1Y · Chowder# -->
+        <!-- INCOME TAB: Symbol · Company · Yield% · YoC% · Annual Dividend Income · Div Growth 1Y · Chowder# -->
         <div class="tab-panel" id="tab-income">
+        {% if summary.metrics.dividend_stocks_count %}
+        <div class="tab-summary-bar">
+            <span>{{ summary.metrics.dividend_stocks_count }} of {{ summary.metrics.positions_count }} positions pay dividends</span>
+            {% if summary.summary.average_yield_on_cost %}<span class="tab-summary-sep">·</span><span>Avg YoC <strong>{{ summary.summary.average_yield_on_cost|floatformat:2 }}%</strong></span>{% endif %}
+        </div>
+        {% endif %}
         <div class="table-wrap">
         <table class="data-table">
             <thead><tr>
@@ -125,7 +130,7 @@
                 <th class="text-right">Shares</th>
                 <th class="text-right">Yield%</th>
                 <th class="text-right">YoC%</th>
-                <th class="text-right">Annual Income</th>
+                <th class="text-right">Annual Dividend Income</th>
                 <th class="text-right">Div Growth 1Y</th>
                 <th class="text-right">Chowder #</th>
             </tr></thead>
@@ -215,13 +220,6 @@
         </div>
         </div>
 
-        <!-- Footer metrics strip -->
-        <div class="card-footer" style="display:flex;gap:28px;flex-wrap:wrap;">
-            <div><div class="text-xs text-muted">Positions</div><div class="font-bold text-sm">{{ summary.metrics.positions_count }}</div></div>
-            <div><div class="text-xs text-muted">Dividend stocks</div><div class="font-bold text-sm">{{ summary.metrics.dividend_stocks_count }}</div></div>
-            <div><div class="text-xs text-muted">Wtd yield</div><div class="font-bold text-sm">{{ summary.metrics.weighted_dividend_yield|floatformat:2 }}%</div></div>
-            <div><div class="text-xs text-muted">Avg YoC</div><div class="font-bold text-sm">{{ summary.summary.average_yield_on_cost|floatformat:2 }}%</div></div>
-        </div>
 
         {% else %}
         <div class="empty-state">

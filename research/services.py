@@ -466,9 +466,10 @@ class StockDataFetcher:
             # Extract metrics with smart conversion to percentages
             metrics = {}
             
-            # P/E ratios - already in correct format
+            # P/E ratios and beta - already in correct format
             metrics['trailing_pe'] = info.get('trailingPE')
             metrics['forward_pe'] = info.get('forwardPE')
+            metrics['beta'] = info.get('beta')
             
             # Payout ratio - yfinance returns as decimal (0.6672 = 66.72%)
             payout = info.get('payoutRatio')
