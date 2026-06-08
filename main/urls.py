@@ -6,8 +6,8 @@ from django.contrib.auth import views as auth_views
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .views import api_root, home, password_change_required
 
-admin.site.site_header = "Py-Stocks Administration"
-admin.site.site_title = "Py-Stocks Admin"
+admin.site.site_header = "Market Mind Administration"
+admin.site.site_title = "Market Mind Admin"
 admin.site.index_title = "Portfolio Management"
 
 urlpatterns = [

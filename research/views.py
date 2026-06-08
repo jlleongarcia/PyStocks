@@ -33,7 +33,7 @@ def user_registration(request):
                     else getattr(settings, 'ADMIN_EMAIL', '')
                 )
                 send_mail(
-                    subject=f'[Py-Stocks] New registration request — {solicitud.username}',
+                    subject=f'[Market Mind] New registration request — {solicitud.username}',
                     message=(
                         f'New registration request.\n\n'
                         f'Username: {solicitud.username}\n'

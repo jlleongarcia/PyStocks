@@ -45,7 +45,7 @@ def password_change_required(request):
 @api_view(['GET'])
 def api_root(request, format=None):
     return Response({
-        'message': 'Py-Stocks Portfolio Management API',
+        'message': 'Market Mind Portfolio Management API',
         'version': '2.0.0',
         'endpoints': {
             'portfolio': {

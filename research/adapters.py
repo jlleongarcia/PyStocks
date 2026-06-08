@@ -92,7 +92,7 @@ class SocialAccountAdapter(DefaultSocialAccountAdapter):
                 else getattr(settings, 'ADMIN_EMAIL', '')
             )
             send_mail(
-                subject=f'[Py-Stocks] New Google request — {solicitud.username}',
+                subject=f'[Market Mind] New Google request — {solicitud.username}',
                 message=(
                     f'New Google registration request.\n\n'
                     f'Username: {solicitud.username}\n'

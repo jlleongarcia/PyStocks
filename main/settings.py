@@ -222,8 +222,8 @@ ACCOUNT_ADAPTER = 'research.adapters.AccountAdapter'
 
 # Email settings for notifications (configure based on your needs)
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # For development
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@py-stocks.com')
-ADMIN_EMAIL = config('ADMIN_EMAIL', default='admin@py-stocks.com')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@marketmind.app')
+ADMIN_EMAIL = config('ADMIN_EMAIL', default='admin@marketmind.app')
 
 # Authentication URLs
 LOGIN_URL = '/accounts/login/'

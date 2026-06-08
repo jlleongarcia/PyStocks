@@ -269,7 +269,7 @@ class UserRegistrationRequest(models.Model):
                 else f"Username: {self.username}\nPassword: The one you provided when registering"
             )
             send_mail(
-                subject='[Py-Stocks] Your request has been approved!',
+                subject='[Market Mind] Your request has been approved!',
                 message=f"Hello {self.first_name},\n\nYour registration has been approved.\n\n{credentials_info}\n\nSign in: {login_url}",
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[self.email],
@@ -284,7 +284,7 @@ class UserRegistrationRequest(models.Model):
             from django.core.mail import send_mail
             from django.conf import settings
             send_mail(
-                subject='[Py-Stocks] Registration request not approved',
+                subject='[Market Mind] Registration request not approved',
                 message=(
                     f"Hello {self.first_name},\n\n"
                     f"Your registration request was not approved at this time.\n"
