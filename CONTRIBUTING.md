@@ -1,262 +1,179 @@
-# Contributing to MarketMind
+# Contributing
 
-Thank you for your interest in contributing to MarketMind! This guide will help you get started.
+## Local Setup
 
-## 🚀 Quick Setup
+**Prerequisites:** Docker with Docker Compose, Git.
 
-### Prerequisites
-- Docker & Docker Compose
-- Git
-- Make (optional but recommended)
-
-### First-Time Setup
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/jlleongarcia/PyStocks.git
-   cd PyStocks
-   ```
-
-2. **Copy environment file**
-   ```bash
-   cp .env.example .env
-   ```
-
-3. **Run the setup** (Using Make - Recommended)
-   ```bash
-   make setup
-   ```
-
-   Or manually:
-   ```bash
-   docker-compose build
-   docker-compose up -d
-   docker-compose exec web python manage.py migrate
-   docker-compose exec web python manage.py collectstatic --noinput
-   ```
-
-4. **Access the application**
-   - Landing Page: http://localhost:8300
-   - Admin Panel: http://localhost:8300/admin
-   - API: http://localhost:8300/api
-
-5. **Default credentials**
-   - Username: `admin`
-   - Password: `admin123`
-
-## 📝 Development Workflow
-
-### Using Make Commands
-
-View all available commands:
 ```bash
-make help
+git clone https://github.com/jlleongarcia/PyStocks.git
+cd PyStocks
+cp .env.example .env
+make setup
 ```
 
-Common commands:
+`make setup` builds the images, starts all services, runs migrations, collects static files, and seeds a default admin account.
+
+| URL | Purpose |
+|---|---|
+| http://localhost:8300 | Application |
+| http://localhost:8300/admin | Django admin |
+| http://localhost:8300/api | REST API root |
+
+Default login: `admin` / `admin123`
+
+### Environment Variables
+
+`.env.example` contains sensible defaults for local development. Key variables:
+
+| Variable | Description | Default |
+|---|---|---|
+| `DEBUG` | Django debug mode | `True` |
+| `SECRET_KEY` | Django secret key | Change in production |
+| `ALLOWED_HOSTS` | Comma-separated allowed hostnames | `localhost,127.0.0.1,*` |
+| `DATABASE_NAME` | PostgreSQL database name | `marketmind_db` |
+| `WEB_PORT` | Exposed web port | `8300` |
+| `FX_RATE_SERVICE_URL` | Self-hosted Frankfurter v2 base URL | — |
+| `CSRF_TRUSTED_ORIGINS` | Required when behind an HTTPS proxy | — |
+
+---
+
+## Command Reference
+
+### Services
+
 ```bash
-make up              # Start services
-make down            # Stop services
-make logs            # View logs
-make bash            # Open shell in web container
-make migrate         # Run migrations
-make test            # Run tests
+make setup            # First-time setup: build, migrate, seed admin
+make up               # Start all services (detached)
+make down             # Stop all services
+make restart          # Restart all services
+make status           # Show running containers
 ```
 
-### Without Make
+### Logs & Shells
 
-Start services:
 ```bash
-docker-compose up -d
+make logs             # All services, follow mode
+make logs-web         # Web container only
+make logs-db          # Database only
+make bash             # Bash inside the web container
+make shell            # Django Python shell
+make psql             # PostgreSQL interactive session
 ```
 
-View logs:
+### Database & Assets
+
 ```bash
-docker-compose logs -f
+make migrate          # Apply pending migrations
+make makemigrations   # Generate migrations from model changes
+make superuser        # Create a new admin user
+make collectstatic    # Collect assets to STATIC_ROOT
+make test             # Run the Django test suite
 ```
 
-Run migrations:
+### Maintenance
+
 ```bash
-docker-compose exec web python manage.py migrate
+make clean            # Remove containers (volumes preserved)
+make reset            # Remove containers AND volumes — all data lost
 ```
 
-## 🔧 Making Changes
+---
 
-### 1. Create a Branch
+## Development Workflow
+
+### 1. Branch
+
+Always branch off `main`:
+
 ```bash
-git checkout -b feature/your-feature-name
+git checkout -b feat/your-feature-name
 ```
 
-### 2. Make Your Changes
+### 2. Make changes
 
-#### Backend (Django)
-- Models: Edit files in `portfolio/models.py` or `research/models.py`
-- Views: Edit files in `portfolio/views.py` or `research/views.py`
-- URLs: Edit files in `portfolio/urls.py` or `research/urls.py`
+The codebase is split into two Django apps:
 
-#### Frontend
-- Templates: Edit files in `templates/`
-- CSS: Edit `static/css/main.css`
-- JavaScript: Edit `static/js/main.js`
+| App | Responsibility |
+|---|---|
+| `portfolio/` | Portfolios, transactions, FX lots, tax reports, price cache |
+| `research/` | Stock search, price history, fundamentals, user management |
 
-### 3. Create Migrations (if models changed)
+Key files:
+
+| File | Purpose |
+|---|---|
+| `portfolio/models.py` | All data models |
+| `portfolio/services.py` | `FXRateService`, `FXLotService`, `TaxReportService`, `PriceCacheService` |
+| `portfolio/views.py` | Template views and REST API endpoints |
+| `templates/` | Django HTML templates |
+| `static/css/` | Styles |
+| `static/js/` | JavaScript |
+| `main/settings.py` | Django settings, driven by `.env` |
+
+### 3. Migrations
+
+If you change any model:
+
 ```bash
 make makemigrations
 make migrate
 ```
 
-### 4. Test Your Changes
+Review the generated migration before committing. Never edit existing migration files.
+
+### 4. Test
+
 ```bash
 make test
 ```
 
-### 5. Commit Your Changes
-```bash
-git add .
-git commit -m "feat: description of your changes"
-```
+### 5. Commit
 
-### 6. Push and Create Pull Request
-```bash
-git push origin feature/your-feature-name
-```
+Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
-## 📋 Commit Message Guidelines
-
-Follow conventional commits:
-
-- `feat:` New feature
-- `fix:` Bug fix
-- `docs:` Documentation changes
-- `style:` Code style changes (formatting, etc.)
-- `refactor:` Code refactoring
-- `test:` Adding tests
-- `chore:` Maintenance tasks
+| Prefix | Use for |
+|---|---|
+| `feat:` | New functionality |
+| `fix:` | Bug fix |
+| `docs:` | Documentation only |
+| `refactor:` | Code restructuring without behaviour change |
+| `test:` | Adding or updating tests |
+| `chore:` | Dependency updates, build config, maintenance |
 
 Examples:
 ```
-feat: add stock search functionality
-fix: resolve portfolio calculation error
-docs: update API documentation
+feat: add CSV export for portfolio positions
+fix: correct FIFO cost basis on partial sell
+refactor: extract FX rate fetch into FXRateService
 ```
 
-## 🧪 Testing
+### 6. Pull Request
 
-Run all tests:
+Push your branch and open a PR against `main`. Describe what changed, why, how to test it manually, and any migration notes.
+
+---
+
+## Code Conventions
+
+**Python** — PEP 8 throughout. Comments only when the *why* is non-obvious from the code itself.
+
+**Templates** — Keep logic in views and services. Template tags and filters are fine; complex conditionals belong in Python.
+
+**Services** — Business logic lives in `services.py`, not in views or models. Models hold data; views handle HTTP; services do everything in between.
+
+**FX logic** — All FX rate fetching goes through `FXRateService.get_rate()`. Never bypass it or hardcode rates.
+
+**Idempotency** — `FXLotService.process_transaction()` checks for existing lots before creating new ones. Preserve this invariant when extending the service.
+
+---
+
+## Troubleshooting
+
+**Port 8300 already in use** — Set `WEB_PORT` in `.env` to a free port, then run `make restart`.
+
+**Database connection error on first startup** — Run `make restart` once; the web container may have started before PostgreSQL was ready.
+
+**Complete reset** (deletes all data):
 ```bash
-make test
+make clean && make setup
 ```
-
-Run specific test:
-```bash
-docker-compose exec web python manage.py test portfolio.tests.TestPortfolio
-```
-
-## 🐛 Debugging
-
-### View logs
-```bash
-make logs          # All services
-make logs-web      # Web service only
-make logs-db       # Database only
-```
-
-### Open Django shell
-```bash
-make shell
-```
-
-### Open container bash
-```bash
-make bash
-```
-
-### Database access
-```bash
-make psql
-```
-
-## 📁 Project Structure
-
-```
-PyStocks/
-├── main/              # Django project settings
-│   ├── settings.py    # Main settings
-│   ├── urls.py        # URL routing
-│   └── views.py       # Core views
-├── portfolio/         # Portfolio management app
-│   ├── models.py      # Database models
-│   ├── views.py       # API views
-│   ├── urls.py        # URL routing
-│   └── admin.py       # Admin configuration
-├── research/          # Stock research app
-│   ├── models.py
-│   ├── views.py
-│   └── urls.py
-├── templates/         # HTML templates
-│   ├── base.html      # Base template
-│   └── index.html     # Landing page
-├── static/            # Static files
-│   ├── css/
-│   └── js/
-├── docker-compose.yml # Docker configuration
-├── Dockerfile         # Docker image definition
-├── Makefile          # Development commands
-└── requirements.txt   # Python dependencies
-```
-
-## 🔄 Keeping Your Fork Updated
-
-```bash
-# Add upstream remote
-git remote add upstream https://github.com/jlleongarcia/PyStocks.git
-
-# Fetch latest changes
-git fetch upstream
-
-# Merge changes
-git checkout main
-git merge upstream/main
-```
-
-## 📚 Additional Resources
-
-- [Django Documentation](https://docs.djangoproject.com/)
-- [Django REST Framework](https://www.django-rest-framework.org/)
-- [Docker Documentation](https://docs.docker.com/)
-
-## 💡 Getting Help
-
-If you need help:
-1. Check existing issues on GitHub
-2. Review the documentation
-3. Ask in the discussions section
-4. Contact the maintainers
-
-## ⚠️ Common Issues
-
-### Port already in use
-```bash
-# Change ports in .env file
-WEB_PORT=8301
-POSTGRES_PORT=5434
-```
-
-### Database connection error
-```bash
-# Restart services
-make restart
-
-# Or rebuild
-make clean
-make setup
-```
-
-### Static files not loading
-```bash
-make collectstatic
-```
-
-## 🎉 Thank You!
-
-Your contributions make MarketMind better for everyone. We appreciate your time and effort!
