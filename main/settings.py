@@ -179,6 +179,9 @@ CELERY_RESULT_BACKEND = 'redis://redis:6379/0'
 ALPHA_VANTAGE_API_KEY = config('ALPHA_VANTAGE_API_KEY', default='')
 FINNHUB_API_KEY = config('FINNHUB_API_KEY', default='')
 
+# FX rate service (self-hosted Frankfurter v2)
+FX_RATE_SERVICE_URL = config('FX_RATE_SERVICE_URL', default='http://100.86.241.113:8301')
+
 # Sites framework (required by django-allauth)
 SITE_ID = 1
 

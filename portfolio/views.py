@@ -2,6 +2,7 @@
 Portfolio API Views
 Comprehensive views for portfolio management with financial metrics integration
 """
+import logging
 from decimal import Decimal
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -10,13 +11,16 @@ from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from datetime import datetime, date as date_type
 
+from research.services import PriceCacheService
 from .models import Portfolio, Transaction, Position, Dividend
 from .serializers import (
     PortfolioSerializer, PortfolioSummarySerializer, TransactionSerializer,
     PositionSerializer, PositionDetailSerializer, DividendSerializer,
     BrokerSummarySerializer, DividendIncomeHistorySerializer
 )
-from .services import PortfolioCalculationService
+from .services import FXLotService, FXRateService, PortfolioCalculationService
+
+logger = logging.getLogger(__name__)
 
 
 class PortfolioListCreateView(APIView):
@@ -461,25 +465,29 @@ def portfolio_detail_view(request, pk):
 @require_http_methods(["GET", "POST"])
 def portfolio_create_view(request):
     """Frontend view: Create new portfolio"""
+    from .models import CURRENCY_CHOICES
     if request.method == 'POST':
         name = request.POST.get('name')
         description = request.POST.get('description', '')
         is_active = request.POST.get('is_active') == 'on'
-        
+        native_currency = request.POST.get('native_currency', 'EUR')
+
         if name:
             portfolio = Portfolio.objects.create(
                 user=request.user,
                 name=name,
                 description=description,
-                is_active=is_active
+                is_active=is_active,
+                native_currency=native_currency,
             )
             messages.success(request, f'Portfolio "{portfolio.name}" created successfully!')
             return redirect('portfolio:portfolio_detail_view', pk=portfolio.id)
         else:
             messages.error(request, 'Portfolio name is required.')
-    
+
     return render(request, 'portfolio/portfolio_form.html', {
-        'portfolio': None
+        'portfolio': None,
+        'currency_choices': CURRENCY_CHOICES,
     })
 
 
@@ -487,19 +495,22 @@ def portfolio_create_view(request):
 @require_http_methods(["GET", "POST"])
 def portfolio_edit_view(request, pk):
     """Frontend view: Edit portfolio"""
+    from .models import CURRENCY_CHOICES
     portfolio = get_object_or_404(Portfolio, pk=pk, user=request.user)
-    
+
     if request.method == 'POST':
         portfolio.name = request.POST.get('name', portfolio.name)
         portfolio.description = request.POST.get('description', '')
         portfolio.is_active = request.POST.get('is_active') == 'on'
+        portfolio.native_currency = request.POST.get('native_currency', portfolio.native_currency)
         portfolio.save()
-        
+
         messages.success(request, f'Portfolio "{portfolio.name}" updated successfully!')
         return redirect('portfolio:portfolio_detail_view', pk=portfolio.id)
-    
+
     return render(request, 'portfolio/portfolio_form.html', {
-        'portfolio': portfolio
+        'portfolio': portfolio,
+        'currency_choices': CURRENCY_CHOICES,
     })
 
 
@@ -508,10 +519,11 @@ def portfolio_edit_view(request, pk):
 def transaction_create_view(request, portfolio_id):
     """Frontend view: Add transaction to portfolio"""
     portfolio = get_object_or_404(Portfolio, pk=portfolio_id, user=request.user)
-    
-    # Types that do not require a stock symbol or shares
-    CASH_TYPES = {'INT', 'DEP', 'WIT'}
+
+    CASH_TYPES  = {'INT', 'DEP', 'WIT'}
     STOCK_TYPES = {'BUY', 'SELL', 'DIV', 'SPOF'}
+    # Types that need FX processing (all except DEP / WIT)
+    FX_TYPES    = {'BUY', 'SELL', 'DIV', 'INT', 'EXC'}
 
     if request.method == 'POST':
         try:
@@ -519,7 +531,6 @@ def transaction_create_view(request, portfolio_id):
             symbol  = request.POST.get('symbol', '').strip().upper()
 
             if tx_type in STOCK_TYPES:
-                # Stock transactions always need a valid symbol
                 if not symbol:
                     messages.error(request, 'Stock symbol is required.')
                     return render(request, 'portfolio/transaction_form.html', {
@@ -534,57 +545,141 @@ def transaction_create_view(request, portfolio_id):
                         'today': datetime.now().strftime('%Y-%m-%d')
                     })
                 resolved_symbol = stock.symbol
+                stock_currency = stock.currency or 'USD'
             else:
-                # Cash / currency types — symbol is optional, no stock lookup
                 resolved_symbol = symbol
+                stock_currency = ''
 
             commission_value = request.POST.get('commission', '').strip() or '0'
+            quantity_raw     = request.POST.get('quantity', '').strip()
+            quantity_value   = Decimal(quantity_raw) if quantity_raw else Decimal('1')
+            tx_date_str      = request.POST.get('transaction_date', '')
 
-            # Cash types have no shares — store quantity as 1
-            quantity_raw = request.POST.get('quantity', '').strip()
-            quantity_value = Decimal(quantity_raw) if quantity_raw else Decimal('1')
+            # ── EXC-specific fields ──────────────────────────────────────────
+            from_currency      = request.POST.get('from_currency', '').strip().upper()
+            from_amount_raw    = request.POST.get('from_amount', '').strip()
+            to_currency        = request.POST.get('to_currency', '').strip().upper()
+            to_amount_raw      = request.POST.get('to_amount', '').strip()
+            commission_cur     = request.POST.get('commission_currency', '').strip().upper()
+
+            from_amount = Decimal(from_amount_raw) if from_amount_raw else None
+            to_amount   = Decimal(to_amount_raw)   if to_amount_raw   else None
+
+            # ── Resolve transaction currency ─────────────────────────────────
+            if tx_type == 'EXC':
+                tx_currency = to_currency or from_currency
+            elif tx_type in STOCK_TYPES:
+                tx_currency = stock_currency
+            else:
+                # INT: user may specify via symbol field or leave blank
+                tx_currency = request.POST.get('transaction_currency', '').strip().upper() or portfolio.native_currency
+
+            # ── FX rate resolution ───────────────────────────────────────────
+            manual_fx  = request.POST.get('fx_rate', '').strip()
+            fx_rate    = None
+            fx_source  = ''
+            native_amt = None
+
+            if tx_type in FX_TYPES and tx_currency and tx_currency != portfolio.native_currency:
+                tx_date_obj = datetime.strptime(tx_date_str, '%Y-%m-%d').date() if tx_date_str else date_type.today()
+
+                if tx_type == 'EXC' and from_amount and to_amount:
+                    # Derive rate directly from the user's own amounts
+                    # 1 to_currency = (from_amount / to_amount) native
+                    native_cur = portfolio.native_currency
+                    if from_currency == native_cur:
+                        fx_rate   = from_amount / to_amount
+                        fx_source = 'computed'
+                    elif to_currency == native_cur:
+                        fx_rate   = to_amount / from_amount
+                        fx_source = 'computed'
+                    else:
+                        # Neither side is native — fetch from Frankfurter
+                        fx_rate, fx_source = FXRateService.get_rate(tx_currency, portfolio.native_currency, tx_date_obj)
+                    native_amt = from_amount  # what was paid in native (or closest proxy)
+                elif manual_fx:
+                    fx_rate   = Decimal(manual_fx)
+                    fx_source = 'manual'
+                else:
+                    fx_rate, fx_source = FXRateService.get_rate(tx_currency, portfolio.native_currency, tx_date_obj)
+
+                if fx_rate and tx_type != 'EXC':
+                    price_val = Decimal(request.POST.get('price', '0') or '0')
+                    total_in_stock_cur = quantity_value * price_val
+                    if tx_type == 'BUY':
+                        total_in_stock_cur += Decimal(commission_value)
+                    else:
+                        total_in_stock_cur -= Decimal(commission_value)
+                    native_amt = total_in_stock_cur * fx_rate
+
+                if fx_source == 'unavailable':
+                    messages.warning(
+                        request,
+                        f"No FX rate found for {tx_currency}/{portfolio.native_currency} around "
+                        f"{tx_date_str}. Please enter it manually in the FX Rate field and resubmit."
+                    )
+                    return render(request, 'portfolio/transaction_form.html', {
+                        'portfolio': portfolio,
+                        'today': datetime.now().strftime('%Y-%m-%d'),
+                        'fx_warning': True,
+                        'post': request.POST,
+                    })
 
             transaction = Transaction.objects.create(
                 portfolio=portfolio,
                 symbol=resolved_symbol,
                 transaction_type=tx_type,
                 quantity=quantity_value,
-                price=Decimal(request.POST.get('price')),
+                price=Decimal(request.POST.get('price', '0') or '0'),
                 commission=Decimal(commission_value),
-                transaction_date=request.POST.get('transaction_date'),
+                transaction_date=tx_date_str,
                 broker=request.POST.get('broker', ''),
-                notes=request.POST.get('notes', '')
+                notes=request.POST.get('notes', ''),
+                # FX fields
+                transaction_currency=tx_currency,
+                fx_rate=fx_rate,
+                native_amount=native_amt,
+                fx_rate_source=fx_source,
+                # EXC-only
+                from_currency=from_currency,
+                from_amount=from_amount,
+                to_currency=to_currency,
+                to_amount=to_amount,
+                commission_currency=commission_cur,
             )
 
-            # Update position only for stock transactions
             if tx_type in STOCK_TYPES:
                 PortfolioCalculationService.update_position_from_transaction(transaction)
 
-            # Fetch and store buy yield if applicable
             if transaction.transaction_type == 'BUY':
                 PortfolioCalculationService.fetch_and_store_buy_yield(transaction)
 
-            # Bust price caches so the new position reflects immediately
+            # Process FX lots
+            if tx_type in FX_TYPES:
+                try:
+                    FXLotService.process_transaction(transaction)
+                except Exception as fx_err:
+                    logger.warning("FX lot processing failed for tx %s: %s", transaction.id, fx_err)
+
             from datetime import date as _date
             from django.core.cache import cache as _cache
-            from research.services import PriceCacheService
             _today = _date.today().isoformat()
             _cache.delete(f"price_range_{portfolio.id}_{_today}")
             if transaction.symbol:
                 PriceCacheService.invalidate(transaction.symbol)
 
-            messages.success(request, f'Transaction for {transaction.symbol} added successfully!')
+            messages.success(request, f'Transaction recorded successfully!')
             return redirect('portfolio:portfolio_detail_view', pk=portfolio.id)
-            
+
         except Exception as e:
             import traceback
             error_details = traceback.format_exc()
             print(f"ERROR in transaction_create_view: {error_details}")
             messages.error(request, f'Error adding transaction: {str(e)}')
-    
+
     return render(request, 'portfolio/transaction_form.html', {
         'portfolio': portfolio,
-        'today': datetime.now().strftime('%Y-%m-%d')
+        'today': datetime.now().strftime('%Y-%m-%d'),
     })
 
 
@@ -623,15 +718,38 @@ def position_detail_view(request, portfolio_id, symbol):
     """Frontend view: Position detail with transactions"""
     portfolio = get_object_or_404(Portfolio, pk=portfolio_id, user=request.user)
     position = get_object_or_404(Position, portfolio=portfolio, symbol=symbol.upper())
-    
-    # Get position details with metrics
+
     position_data = PortfolioCalculationService.get_position_detail(position)
-    
-    # Get transaction history
     transactions = position.get_transactions()
-    
+
     return render(request, 'portfolio/position_detail.html', {
         'portfolio': portfolio,
         'position': position_data,
         'transactions': transactions
+    })
+
+
+@login_required
+def tax_report_view(request, pk):
+    """Frontend view: Annual tax report — stock P&L + FX P&L in native currency."""
+    from .services import TaxReportService
+    portfolio = get_object_or_404(Portfolio, pk=pk, user=request.user)
+
+    available_years = TaxReportService.available_years(portfolio)
+    current_year = date_type.today().year
+    if not available_years:
+        available_years = [current_year]
+
+    try:
+        year = int(request.GET.get('year', available_years[0]))
+    except (ValueError, IndexError):
+        year = current_year
+
+    report = TaxReportService.calculate(portfolio, year)
+
+    return render(request, 'portfolio/tax_report.html', {
+        'portfolio': portfolio,
+        'report': report,
+        'available_years': available_years,
+        'selected_year': year,
     })

@@ -14,6 +14,12 @@
     <h1 class="page-title">Add Transaction</h1>
 </div>
 
+{% if fx_warning %}
+<div class="alert alert-warning" style="max-width:680px;margin-bottom:16px;">
+    No FX rate could be fetched automatically for the selected date. Please enter the rate manually below and resubmit.
+</div>
+{% endif %}
+
 <div class="card" style="max-width:680px;">
     <div class="card-body">
         <form method="post" id="txForm">
@@ -37,7 +43,7 @@
                     </div>
                 </div>
             </div>
-            <input type="hidden" name="transaction_type" id="txType" value="BUY">
+            <input type="hidden" name="transaction_type" id="txType" value="{{ post.transaction_type|default:'BUY' }}">
 
             <!-- Symbol -->
             <div class="form-group" id="fieldSymbol">
@@ -46,6 +52,7 @@
                     <span class="required" id="symbolRequired">*</span>
                 </label>
                 <input type="text" id="symbol" name="symbol" class="form-control"
+                       value="{{ post.symbol|default:'' }}"
                        placeholder="e.g. AAPL, KO, JNJ"
                        style="text-transform:uppercase;font-weight:600;letter-spacing:0.04em;"
                        autofocus>
@@ -53,51 +60,129 @@
             </div>
 
             <div class="form-grid-2">
-                <!-- Shares — hidden for cash-only types -->
+                <!-- Shares — hidden for cash-only / EXC types -->
                 <div class="form-group" id="fieldShares">
                     <label class="form-label" for="quantity"><span id="sharesLabel">Shares</span> <span class="required">*</span></label>
                     <input type="number" id="quantity" name="quantity" class="form-control"
-                           step="0.0001" min="0.0001" placeholder="0.00">
+                           step="0.0001" min="0.0001" placeholder="0.00"
+                           value="{{ post.quantity|default:'' }}">
                 </div>
 
-                <!-- Price / Amount -->
-                <div class="form-group">
+                <!-- Price / Amount — hidden for EXC -->
+                <div class="form-group" id="fieldPrice">
                     <label class="form-label" for="price"><span id="priceLabel">Price per Share</span> <span class="required">*</span></label>
                     <input type="number" id="price" name="price" class="form-control"
-                           step="0.0001" min="0.0001" placeholder="0.00" required>
+                           step="0.0001" min="0" placeholder="0.00" required
+                           value="{{ post.price|default:'' }}">
                 </div>
 
                 <div class="form-group">
                     <label class="form-label" for="transaction_date">Date <span class="required">*</span></label>
                     <input type="date" id="transaction_date" name="transaction_date" class="form-control"
-                           value="{{ today }}" required>
+                           value="{{ post.transaction_date|default:today }}" required>
                 </div>
 
-                <!-- Commission — hidden for cash-only types -->
+                <!-- Commission — hidden for some types -->
                 <div class="form-group" id="fieldCommission">
                     <label class="form-label" for="commission">Commission / Fees</label>
                     <input type="number" id="commission" name="commission" class="form-control"
-                           step="0.01" min="0" value="0.00" placeholder="0.00">
+                           step="0.01" min="0" value="{{ post.commission|default:'0.00' }}" placeholder="0.00">
                 </div>
 
                 <!-- Broker — shown only for BUY/SELL -->
                 <div class="form-group col-full" id="fieldBroker">
                     <label class="form-label" for="broker">Broker</label>
                     <input type="text" id="broker" name="broker" class="form-control"
+                           value="{{ post.broker|default:'' }}"
                            placeholder="e.g. Interactive Brokers, Degiro, eToro">
+                </div>
+
+                <!-- ── EXC-specific fields ───────────────────────────────── -->
+                <div class="form-group" id="fieldFromCurrency" style="display:none;">
+                    <label class="form-label" for="from_currency">From Currency <span class="required">*</span></label>
+                    <input type="text" id="from_currency" name="from_currency" class="form-control"
+                           placeholder="e.g. EUR" maxlength="10" style="text-transform:uppercase;"
+                           value="{{ post.from_currency|default:'' }}">
+                </div>
+
+                <div class="form-group" id="fieldFromAmount" style="display:none;">
+                    <label class="form-label" for="from_amount">From Amount <span class="required">*</span></label>
+                    <input type="number" id="from_amount" name="from_amount" class="form-control"
+                           step="0.0001" min="0" placeholder="0.00"
+                           value="{{ post.from_amount|default:'' }}">
+                </div>
+
+                <div class="form-group" id="fieldToCurrency" style="display:none;">
+                    <label class="form-label" for="to_currency">To Currency <span class="required">*</span></label>
+                    <input type="text" id="to_currency" name="to_currency" class="form-control"
+                           placeholder="e.g. USD" maxlength="10" style="text-transform:uppercase;"
+                           value="{{ post.to_currency|default:'' }}">
+                </div>
+
+                <div class="form-group" id="fieldToAmount" style="display:none;">
+                    <label class="form-label" for="to_amount">To Amount <span class="required">*</span></label>
+                    <input type="number" id="to_amount" name="to_amount" class="form-control"
+                           step="0.0001" min="0" placeholder="0.00"
+                           value="{{ post.to_amount|default:'' }}">
+                </div>
+
+                <div class="form-group" id="fieldCommissionCurrency" style="display:none;">
+                    <label class="form-label" for="commission_currency">Commission Currency</label>
+                    <input type="text" id="commission_currency" name="commission_currency" class="form-control"
+                           placeholder="e.g. USD" maxlength="10" style="text-transform:uppercase;"
+                           value="{{ post.commission_currency|default:'' }}">
+                </div>
+
+                <!-- ── INT currency field ─────────────────────────────────── -->
+                <div class="form-group" id="fieldTxCurrency" style="display:none;">
+                    <label class="form-label" for="transaction_currency">Interest Currency</label>
+                    <input type="text" id="transaction_currency" name="transaction_currency" class="form-control"
+                           placeholder="e.g. USD" maxlength="10" style="text-transform:uppercase;"
+                           value="{{ post.transaction_currency|default:'' }}">
+                    <p class="form-hint">Currency in which interest was paid (leave blank if same as portfolio)</p>
+                </div>
+
+                <!-- ── FX Rate section (hidden for DEP/WIT/SPOF) ──────────── -->
+                <div class="form-group col-full" id="fieldFXRate" style="display:none;">
+                    <div style="background:#f0f7ff;border:1px solid #b3d4f5;border-radius:var(--radius);padding:12px 14px;">
+                        <div style="font-size:0.8rem;font-weight:600;color:#3b7ecb;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em;">
+                            FX Rate — <span id="fxRatePortfolioCurrency">{{ portfolio.native_currency }}</span>
+                        </div>
+                        <div style="display:flex;gap:10px;align-items:flex-end;">
+                            <div style="flex:1;">
+                                <label class="form-label" for="fx_rate" style="font-size:0.8rem;">
+                                    Rate: 1 <span id="fxFromCur">—</span> = ? {{ portfolio.native_currency }}
+                                </label>
+                                <input type="number" id="fx_rate" name="fx_rate" class="form-control"
+                                       step="0.00000001" min="0" placeholder="Auto-fetched on save"
+                                       value="{{ post.fx_rate|default:'' }}">
+                            </div>
+                            <div id="fxFetchStatus" style="font-size:0.8rem;color:var(--text-secondary);padding-bottom:10px;min-width:160px;"></div>
+                        </div>
+                        <p style="font-size:0.75rem;color:var(--text-secondary);margin-top:6px;margin-bottom:0;">
+                            Leave blank — the rate is fetched automatically from the ECB.
+                            Fill in manually only if you get a warning after submit.
+                        </p>
+                    </div>
                 </div>
 
                 <div class="form-group col-full">
                     <label class="form-label" for="notes">Notes</label>
                     <textarea id="notes" name="notes" class="form-control" rows="2"
-                              placeholder="Optional notes about this transaction"></textarea>
+                              placeholder="Optional notes about this transaction">{{ post.notes|default:'' }}</textarea>
                 </div>
             </div>
 
-            <!-- Total preview — hidden for single-amount types -->
+            <!-- Total preview — hidden for EXC and single-amount types -->
             <div id="totalPreviewRow" style="background:#f8fafc;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
                 <span style="font-size:0.85rem;color:var(--text-secondary);" id="totalLabel">Estimated total</span>
                 <span style="font-size:1.1rem;font-weight:700;color:var(--text-primary);" id="totalPreview">$0.00</span>
+            </div>
+
+            <!-- EXC effective rate preview -->
+            <div id="excRatePreview" style="display:none;background:#f0fff4;border:1px solid #86efac;border-radius:var(--radius);padding:14px 16px;margin-bottom:20px;">
+                <span style="font-size:0.85rem;color:var(--text-secondary);">Effective rate</span>
+                <span style="font-size:1.1rem;font-weight:700;color:#15803d;margin-left:10px;" id="excRateValue">—</span>
             </div>
 
             <div style="display:flex;gap:10px;">
@@ -115,15 +200,17 @@
 
 {% block extra_js %}
 <script>
+const NATIVE_CURRENCY = '{{ portfolio.native_currency }}';
+
 const TYPE_CONFIG = {
-    BUY:  { symbolRequired: true,  symbolHint: 'Stock is fetched automatically if not in the database', sharesVisible: true,  priceLabel: 'Price per Share',  commissionVisible: true,  brokerVisible: true,  totalVisible: true  },
-    SELL: { symbolRequired: true,  symbolHint: 'Stock is fetched automatically if not in the database', sharesVisible: true,  priceLabel: 'Price per Share',  commissionVisible: true,  brokerVisible: true,  totalVisible: true  },
-    DIV:  { symbolRequired: true,  symbolHint: 'Ticker that paid the dividend',                         sharesVisible: true,  priceLabel: 'Dividend per Share', commissionVisible: false, brokerVisible: false, totalVisible: true  },
-    SPOF: { symbolRequired: true,  symbolHint: 'New ticker received in the spin-off',                   sharesVisible: true,  priceLabel: 'Price per Share',   commissionVisible: false, brokerVisible: false, totalVisible: true  },
-    INT:  { symbolRequired: false, symbolHint: 'Optional — e.g. currency or source',                    sharesVisible: false, priceLabel: 'Amount',            commissionVisible: false, brokerVisible: false, totalVisible: false },
-    DEP:  { symbolRequired: false, symbolHint: 'Optional — e.g. USD, EUR',                              sharesVisible: false, priceLabel: 'Amount',            commissionVisible: false, brokerVisible: false, totalVisible: false },
-    WIT:  { symbolRequired: false, symbolHint: 'Optional — e.g. USD, EUR',                              sharesVisible: false, priceLabel: 'Amount',            commissionVisible: false, brokerVisible: false, totalVisible: false },
-    EXC:  { symbolRequired: false, symbolHint: 'Optional — e.g. EUR/USD currency pair',                 sharesVisible: true,  priceLabel: 'Exchange Rate',     commissionVisible: true,  brokerVisible: false, totalVisible: true  },
+    BUY:  { symbolRequired: true,  symbolHint: 'Stock is fetched automatically if not in the database', sharesVisible: true,  priceVisible: true,  priceLabel: 'Price per Share',   commVisible: true,  brokerVisible: true,  totalVisible: true,  fxVisible: true,  excVisible: false, intCurVisible: false },
+    SELL: { symbolRequired: true,  symbolHint: 'Stock is fetched automatically if not in the database', sharesVisible: true,  priceVisible: true,  priceLabel: 'Price per Share',   commVisible: true,  brokerVisible: true,  totalVisible: true,  fxVisible: true,  excVisible: false, intCurVisible: false },
+    DIV:  { symbolRequired: true,  symbolHint: 'Ticker that paid the dividend',                         sharesVisible: true,  priceVisible: true,  priceLabel: 'Dividend per Share', commVisible: false, brokerVisible: false, totalVisible: true,  fxVisible: true,  excVisible: false, intCurVisible: false },
+    SPOF: { symbolRequired: true,  symbolHint: 'New ticker received in the spin-off',                   sharesVisible: true,  priceVisible: true,  priceLabel: 'Price per Share',   commVisible: false, brokerVisible: false, totalVisible: true,  fxVisible: false, excVisible: false, intCurVisible: false },
+    INT:  { symbolRequired: false, symbolHint: 'Optional — e.g. currency or source',                    sharesVisible: false, priceVisible: true,  priceLabel: 'Amount',            commVisible: false, brokerVisible: false, totalVisible: false, fxVisible: true,  excVisible: false, intCurVisible: true  },
+    DEP:  { symbolRequired: false, symbolHint: 'Optional — e.g. USD, EUR',                              sharesVisible: false, priceVisible: true,  priceLabel: 'Amount',            commVisible: false, brokerVisible: false, totalVisible: false, fxVisible: false, excVisible: false, intCurVisible: false },
+    WIT:  { symbolRequired: false, symbolHint: 'Optional — e.g. USD, EUR',                              sharesVisible: false, priceVisible: true,  priceLabel: 'Amount',            commVisible: false, brokerVisible: false, totalVisible: false, fxVisible: false, excVisible: false, intCurVisible: false },
+    EXC:  { symbolRequired: false, symbolHint: 'Optional — e.g. reference or broker name',              sharesVisible: false, priceVisible: false, priceLabel: 'Exchange Rate',     commVisible: true,  brokerVisible: false, totalVisible: false, fxVisible: false, excVisible: true,  intCurVisible: false },
 };
 
 const ACTIVE_CLASSES = {
@@ -137,39 +224,57 @@ function setType(type) {
     document.getElementById('txType').value = type;
     const cfg = TYPE_CONFIG[type];
 
-    // Update all tab buttons
     document.querySelectorAll('.type-tab').forEach(btn => {
         btn.className = 'type-tab';
-        if (btn.dataset.type === type) {
-            btn.className = 'type-tab ' + ACTIVE_CLASSES[type];
-        }
+        if (btn.dataset.type === type) btn.className = 'type-tab ' + ACTIVE_CLASSES[type];
     });
 
-    // Symbol field
     const symbolInput = document.getElementById('symbol');
     document.getElementById('symbolRequired').style.display = cfg.symbolRequired ? '' : 'none';
     symbolInput.required = cfg.symbolRequired;
     document.getElementById('symbolHint').textContent = cfg.symbolHint;
 
-    // Shares
-    const sharesRow = document.getElementById('fieldShares');
-    const sharesInput = document.getElementById('quantity');
-    sharesRow.style.display = cfg.sharesVisible ? '' : 'none';
-    sharesInput.required = cfg.sharesVisible;
+    show('fieldShares',  cfg.sharesVisible);
+    document.getElementById('quantity').required = cfg.sharesVisible;
 
-    // Price label
+    show('fieldPrice',   cfg.priceVisible);
+    document.getElementById('price').required = cfg.priceVisible;
     document.getElementById('priceLabel').textContent = cfg.priceLabel;
 
-    // Commission
-    document.getElementById('fieldCommission').style.display = cfg.commissionVisible ? '' : 'none';
+    show('fieldCommission', cfg.commVisible);
+    show('fieldBroker',     cfg.brokerVisible);
+    show('totalPreviewRow', cfg.totalVisible);
+    show('fieldFXRate',     cfg.fxVisible);
+    show('excRatePreview',  cfg.excVisible);
 
-    // Broker
-    document.getElementById('fieldBroker').style.display = cfg.brokerVisible ? '' : 'none';
+    // EXC sub-fields
+    ['fieldFromCurrency','fieldFromAmount','fieldToCurrency','fieldToAmount','fieldCommissionCurrency'].forEach(id => {
+        show(id, cfg.excVisible);
+    });
+    show('fieldTxCurrency', cfg.intCurVisible);
 
-    // Total preview
-    document.getElementById('totalPreviewRow').style.display = cfg.totalVisible ? '' : 'none';
-
+    // Update FX rate label
+    updateFXLabel(type);
     updateTotal();
+    updateEXCRate();
+}
+
+function show(id, visible) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = visible ? '' : 'none';
+}
+
+function updateFXLabel(type) {
+    const fromEl = document.getElementById('fxFromCur');
+    if (!fromEl) return;
+    const symbolVal = document.getElementById('symbol').value.trim() || '?';
+    if (type === 'INT') {
+        fromEl.textContent = document.getElementById('transaction_currency').value || '?';
+    } else if (['BUY','SELL','DIV'].includes(type)) {
+        fromEl.textContent = symbolVal + ' currency';
+    } else {
+        fromEl.textContent = '?';
+    }
 }
 
 function updateTotal() {
@@ -179,27 +284,58 @@ function updateTotal() {
 
     const qty   = parseFloat(document.getElementById('quantity').value) || 0;
     const price = parseFloat(document.getElementById('price').value) || 0;
-    const comm  = cfg.commissionVisible ? (parseFloat(document.getElementById('commission').value) || 0) : 0;
+    const comm  = cfg.commVisible ? (parseFloat(document.getElementById('commission').value) || 0) : 0;
     const total = cfg.sharesVisible ? qty * price + comm : price;
     document.getElementById('totalPreview').textContent =
-        '$' + total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// Wire up tab buttons
+function updateEXCRate() {
+    const fromAmt = parseFloat(document.getElementById('from_amount').value) || 0;
+    const toAmt   = parseFloat(document.getElementById('to_amount').value)   || 0;
+    const fromCur = document.getElementById('from_currency').value.trim().toUpperCase();
+    const toCur   = document.getElementById('to_currency').value.trim().toUpperCase();
+    const el      = document.getElementById('excRateValue');
+    if (fromAmt > 0 && toAmt > 0 && fromCur && toCur) {
+        const rate = toAmt / fromAmt;
+        el.textContent = `1 ${fromCur} = ${rate.toFixed(6)} ${toCur}`;
+    } else {
+        el.textContent = '—';
+    }
+}
+
+// Wire up buttons
 document.querySelectorAll('.type-tab').forEach(btn => {
     btn.addEventListener('click', () => setType(btn.dataset.type));
 });
 
-// Auto-uppercase symbol
 document.getElementById('symbol').addEventListener('input', function(e) {
     e.target.value = e.target.value.toUpperCase();
+    updateFXLabel(document.getElementById('txType').value);
 });
 
-['quantity', 'price', 'commission'].forEach(id => {
+['from_currency','to_currency'].forEach(id => {
+    document.getElementById(id).addEventListener('input', function(e) {
+        e.target.value = e.target.value.toUpperCase();
+        updateEXCRate();
+    });
+});
+
+['quantity','price','commission'].forEach(id => {
     document.getElementById(id).addEventListener('input', updateTotal);
 });
 
-// Init
-setType('BUY');
+['from_amount','to_amount'].forEach(id => {
+    document.getElementById(id).addEventListener('input', updateEXCRate);
+});
+
+document.getElementById('transaction_currency').addEventListener('input', function(e) {
+    e.target.value = e.target.value.toUpperCase();
+    updateFXLabel('INT');
+});
+
+// Init — restore type from server if fx_warning triggered a re-render
+const initType = document.getElementById('txType').value || 'BUY';
+setType(initType);
 </script>
 {% endblock %}

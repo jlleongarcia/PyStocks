@@ -18,6 +18,7 @@ urlpatterns = [
     path('<int:portfolio_id>/position/<str:symbol>/', views.position_detail_view, name='position_detail_view'),
     path('<int:pk>/sync-dividends/', views.portfolio_sync_dividends, name='portfolio_sync_dividends'),
     path('<int:pk>/delete/', views.portfolio_delete_view, name='portfolio_delete_view'),
+    path('<int:pk>/tax-report/', views.tax_report_view, name='tax_report_view'),
     
     # ========================================================================
     # API Endpoints (JSON responses)

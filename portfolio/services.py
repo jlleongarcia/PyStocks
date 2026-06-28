@@ -3,14 +3,409 @@ Portfolio calculation services
 Handles complex portfolio analytics and calculations
 """
 import logging
+import requests
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+from django.conf import settings
 from django.core.cache import cache
 from django.db.models import Max, Min, Sum, Q
 from research.models import FinancialMetrics, HistoricalPrice, Stock
 from research.services import PriceCacheService
 
 logger = logging.getLogger(__name__)
+
+
+class FXRateService:
+    """Fetch historical FX rates from the self-hosted Frankfurter v2 instance."""
+
+    BASE_URL = getattr(settings, 'FX_RATE_SERVICE_URL', 'http://100.86.241.113:8301').rstrip('/')
+    # How many prior business days to try when the requested date has no ECB data
+    MAX_LOOKBACK_DAYS = 5
+
+    @classmethod
+    def get_rate(cls, from_currency: str, to_currency: str, on_date: date) -> tuple[Decimal | None, str]:
+        """
+        Return (rate, source) where rate is 1 from_currency = rate to_currency.
+        source is 'frankfurter' or 'manual' (manual means caller must ask the user).
+        Returns (None, 'unavailable') when no rate could be fetched.
+        """
+        if from_currency == to_currency:
+            return Decimal('1'), 'same_currency'
+
+        cache_key = f"fx_rate_{from_currency}_{to_currency}_{on_date.isoformat()}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Decimal(str(cached)), 'frankfurter'
+
+        candidate = on_date
+        for _ in range(cls.MAX_LOOKBACK_DAYS + 1):
+            rate = cls._fetch(from_currency, to_currency, candidate)
+            if rate is not None:
+                # Cache for 24 h — historical rates don't change
+                cache.set(cache_key, str(rate), 86400)
+                return rate, 'frankfurter'
+            candidate = candidate - timedelta(days=1)
+
+        return None, 'unavailable'
+
+    @classmethod
+    def _fetch(cls, from_currency: str, to_currency: str, on_date: date) -> Decimal | None:
+        try:
+            url = f"{cls.BASE_URL}/v2/rate/{from_currency}/{to_currency}"
+            resp = requests.get(url, params={'date': on_date.isoformat()}, timeout=5)
+            if resp.status_code == 404:
+                return None
+            resp.raise_for_status()
+            data = resp.json()
+            return Decimal(str(data['rate']))
+        except Exception as exc:
+            logger.warning("FXRateService fetch failed (%s/%s %s): %s", from_currency, to_currency, on_date, exc)
+            return None
+
+
+class FXLotService:
+    """
+    Manage the per-portfolio FX book.
+
+    The FX book tracks lots of foreign currency (real + virtual) and provides
+    FIFO matching so that realised FX gains/losses can be computed for tax.
+
+    Lot creation
+    ─────────────
+    • EXC transaction  → REAL lot in the purchased (to) currency
+    • SELL profit/loss → VIRTUAL_SELL lot (positive balance = lot received;
+                          negative balance = lot consumed via FIFO)
+    • DIV / INT        → VIRTUAL_DIV / VIRTUAL_INT lot received
+
+    Lot consumption (FIFO)
+    ──────────────────────
+    When foreign currency "leaves" the book (SELL loss consumes existing lots)
+    we match oldest lots first, record FXLotConsumption entries and compute
+    the realised FX gain/loss in native currency.
+    """
+
+    # Transaction types that generate FX events
+    FX_TYPES = {'BUY', 'SELL', 'DIV', 'INT', 'EXC'}
+
+    @staticmethod
+    def process_transaction(transaction):
+        """
+        Entry point: analyse a saved Transaction and create/consume FX lots as needed.
+        Safe to call multiple times — checks for existing lots first.
+        """
+        from portfolio.models import FXLot, FXLotConsumption
+
+        tx_type = transaction.transaction_type
+        portfolio = transaction.portfolio
+        native = portfolio.native_currency
+        tx_currency = transaction.transaction_currency
+
+        if tx_type not in FXLotService.FX_TYPES:
+            return
+        if not tx_currency or tx_currency == native:
+            return  # same currency — no FX event
+
+        # Avoid duplicate processing
+        if transaction.fx_lots.exists():
+            return
+
+        tx_date = transaction.transaction_date.date() if hasattr(transaction.transaction_date, 'date') else transaction.transaction_date
+
+        if tx_type == 'EXC':
+            FXLotService._process_exc(transaction, tx_date)
+        elif tx_type == 'SELL':
+            FXLotService._process_sell(transaction, tx_date)
+        elif tx_type in ('DIV', 'INT'):
+            FXLotService._process_income(transaction, tx_date)
+        # BUY: no FX lot created — the funding EXC already handled it
+
+    @staticmethod
+    def _process_exc(transaction, tx_date):
+        """Real currency exchange: create a lot in the purchased currency."""
+        from portfolio.models import FXLot
+        if not (transaction.to_currency and transaction.to_amount):
+            return
+
+        native = transaction.portfolio.native_currency
+        to_cur = transaction.to_currency
+        to_amt = transaction.to_amount
+
+        # FX rate: 1 to_currency = ? native_currency
+        if to_cur == native:
+            fx_rate = Decimal('1')
+        else:
+            # from_currency is the native perspective; compute rate
+            from_amt = transaction.from_amount or Decimal('1')
+            fx_rate = from_amt / to_amt if to_amt else Decimal('1')
+
+        FXLot.objects.create(
+            portfolio=transaction.portfolio,
+            currency=to_cur,
+            source_transaction=transaction,
+            lot_type='REAL',
+            created_date=tx_date,
+            original_amount_foreign=to_amt,
+            remaining_amount_foreign=to_amt,
+            fx_rate=fx_rate,
+            original_amount_native=to_amt * fx_rate,
+        )
+
+    @staticmethod
+    def _process_sell(transaction, tx_date):
+        """
+        Compute the 'balance' of this SELL vs FIFO cost basis.
+        Positive balance → virtual lot received (profit).
+        Negative balance → consume existing lots (loss).
+        """
+        from portfolio.models import FXLot, Transaction as Tx
+
+        portfolio = transaction.portfolio
+        symbol = transaction.symbol
+        tx_currency = transaction.transaction_currency
+        fx_rate = transaction.fx_rate or Decimal('1')
+
+        # FIFO cost basis in stock-currency for the sold quantity
+        fifo_cost = FXLotService._fifo_cost_basis_stock_currency(portfolio, symbol, transaction.quantity, tx_date)
+        proceeds = transaction.quantity * transaction.price  # gross proceeds in stock-currency
+
+        balance = proceeds - fifo_cost  # positive = profit, negative = loss
+
+        if balance == 0:
+            return
+
+        amount_abs = abs(balance)
+
+        if balance > 0:
+            # Profit: virtual lot received in stock-currency
+            FXLot.objects.create(
+                portfolio=portfolio,
+                currency=tx_currency,
+                source_transaction=transaction,
+                lot_type='VIRTUAL_SELL',
+                created_date=tx_date,
+                original_amount_foreign=amount_abs,
+                remaining_amount_foreign=amount_abs,
+                fx_rate=fx_rate,
+                original_amount_native=amount_abs * fx_rate,
+            )
+        else:
+            # Loss: consume existing lots FIFO
+            FXLotService._consume_fifo(portfolio, tx_currency, amount_abs, fx_rate, tx_date, transaction)
+
+    @staticmethod
+    def _process_income(transaction, tx_date):
+        """DIV / INT: virtual lot received in the income currency."""
+        from portfolio.models import FXLot
+
+        amount = transaction.quantity * transaction.price
+        fx_rate = transaction.fx_rate or Decimal('1')
+        lot_type = 'VIRTUAL_DIV' if transaction.transaction_type == 'DIV' else 'VIRTUAL_INT'
+
+        FXLot.objects.create(
+            portfolio=transaction.portfolio,
+            currency=transaction.transaction_currency,
+            source_transaction=transaction,
+            lot_type=lot_type,
+            created_date=tx_date,
+            original_amount_foreign=amount,
+            remaining_amount_foreign=amount,
+            fx_rate=fx_rate,
+            original_amount_native=amount * fx_rate,
+        )
+
+    @staticmethod
+    def _consume_fifo(portfolio, currency, amount_to_consume, fx_rate_now, on_date, consuming_tx):
+        """
+        Consume `amount_to_consume` units of `currency` from oldest open lots (FIFO).
+        Creates FXLotConsumption records and calculates FX gain/loss.
+        """
+        from portfolio.models import FXLot, FXLotConsumption
+
+        lots = FXLot.objects.filter(
+            portfolio=portfolio,
+            currency=currency,
+            is_closed=False,
+            remaining_amount_foreign__gt=0,
+        ).order_by('created_date', 'id')
+
+        remaining = Decimal(str(amount_to_consume))
+
+        for lot in lots:
+            if remaining <= 0:
+                break
+
+            to_take = min(lot.remaining_amount_foreign, remaining)
+            cost_native = to_take * lot.fx_rate
+            proceeds_native = to_take * fx_rate_now
+            gain_loss = proceeds_native - cost_native
+
+            FXLotConsumption.objects.create(
+                lot=lot,
+                consuming_transaction=consuming_tx,
+                amount_foreign_consumed=to_take,
+                fx_rate_at_consumption=fx_rate_now,
+                fx_gain_loss_native=gain_loss,
+                consumption_date=on_date,
+            )
+
+            lot.remaining_amount_foreign -= to_take
+            if lot.remaining_amount_foreign <= 0:
+                lot.is_closed = True
+            lot.save(update_fields=['remaining_amount_foreign', 'is_closed'])
+            remaining -= to_take
+
+    @staticmethod
+    def _fifo_cost_basis_stock_currency(portfolio, symbol, quantity_sold, as_of_date):
+        """
+        FIFO cost basis in stock-currency for `quantity_sold` shares sold on `as_of_date`.
+        Walks BUY/SPOF transactions oldest-first to determine which lots are consumed.
+        """
+        from portfolio.models import Transaction as Tx
+
+        buys = Tx.objects.filter(
+            portfolio=portfolio,
+            symbol=symbol,
+            transaction_type__in=['BUY', 'SPOF'],
+            transaction_date__date__lt=as_of_date,
+        ).order_by('transaction_date')
+
+        # Also consume prior SELLs to know remaining lots
+        sells = Tx.objects.filter(
+            portfolio=portfolio,
+            symbol=symbol,
+            transaction_type='SELL',
+            transaction_date__date__lt=as_of_date,
+        ).order_by('transaction_date')
+
+        # Build list of remaining buy lots [(qty_remaining, price_per_share)]
+        buy_lots = [[float(b.quantity), float(b.price)] for b in buys]
+        sold_so_far = sum(float(s.quantity) for s in sells)
+
+        # Consume prior sales from oldest lots
+        for lot in buy_lots:
+            if sold_so_far <= 0:
+                break
+            take = min(lot[0], sold_so_far)
+            lot[0] -= take
+            sold_so_far -= take
+
+        # Now consume quantity_sold from remaining lots
+        qty_to_consume = float(quantity_sold)
+        cost = Decimal('0')
+        for lot in buy_lots:
+            if qty_to_consume <= 0:
+                break
+            take = min(lot[0], qty_to_consume)
+            cost += Decimal(str(take)) * Decimal(str(lot[1]))
+            qty_to_consume -= take
+
+        return cost
+
+
+class TaxReportService:
+    """
+    Compute annual tax report for a portfolio.
+
+    Two separate P&L streams:
+    1. Stock P&L   — realised gain/loss per sold position in native currency (FIFO lots)
+    2. FX P&L      — realised FX gain/loss from FXLotConsumption records
+    """
+
+    @staticmethod
+    def calculate(portfolio, year: int) -> dict:
+        from portfolio.models import Transaction, FXLotConsumption
+
+        native = portfolio.native_currency
+
+        stock_events  = TaxReportService._stock_pnl(portfolio, year, native)
+        fx_events     = TaxReportService._fx_pnl(portfolio, year)
+        stock_total   = sum(e['gain_loss_native'] for e in stock_events)
+        fx_total      = sum(e['gain_loss_native'] for e in fx_events)
+
+        return {
+            'year': year,
+            'native_currency': native,
+            'stock_events': stock_events,
+            'stock_total': stock_total,
+            'fx_events': fx_events,
+            'fx_total': fx_total,
+            'grand_total': stock_total + fx_total,
+        }
+
+    @staticmethod
+    def _stock_pnl(portfolio, year, native):
+        """
+        For each SELL transaction in `year`, compute realised P&L in native currency.
+        Cost basis uses FIFO in stock-currency, then converts via fx_rate at sell date.
+        """
+        from portfolio.models import Transaction
+
+        sells = Transaction.objects.filter(
+            portfolio=portfolio,
+            transaction_type='SELL',
+            transaction_date__year=year,
+        ).order_by('transaction_date')
+
+        events = []
+        for sell in sells:
+            fifo_cost_stock = FXLotService._fifo_cost_basis_stock_currency(
+                portfolio, sell.symbol, sell.quantity,
+                sell.transaction_date.date() if hasattr(sell.transaction_date, 'date') else sell.transaction_date
+            )
+            proceeds_stock = sell.quantity * sell.price - sell.commission
+            gain_loss_stock = proceeds_stock - fifo_cost_stock
+
+            # Convert to native
+            fx = sell.fx_rate or Decimal('1')
+            gain_loss_native = gain_loss_stock * fx
+
+            events.append({
+                'date': sell.transaction_date,
+                'symbol': sell.symbol,
+                'quantity': sell.quantity,
+                'proceeds_stock': proceeds_stock,
+                'cost_basis_stock': fifo_cost_stock,
+                'gain_loss_stock': gain_loss_stock,
+                'stock_currency': sell.transaction_currency or native,
+                'fx_rate': fx,
+                'gain_loss_native': gain_loss_native,
+            })
+        return events
+
+    @staticmethod
+    def _fx_pnl(portfolio, year):
+        """Return list of FX consumption events for `year`."""
+        from portfolio.models import FXLotConsumption
+
+        consumptions = FXLotConsumption.objects.filter(
+            lot__portfolio=portfolio,
+            consumption_date__year=year,
+        ).select_related('lot', 'consuming_transaction').order_by('consumption_date')
+
+        events = []
+        for c in consumptions:
+            events.append({
+                'date': c.consumption_date,
+                'currency': c.lot.currency,
+                'amount_foreign': c.amount_foreign_consumed,
+                'cost_rate': c.lot.fx_rate,
+                'sale_rate': c.fx_rate_at_consumption,
+                'gain_loss_native': c.fx_gain_loss_native,
+                'lot_type': c.lot.lot_type,
+                'source_tx': c.consuming_transaction,
+            })
+        return events
+
+    @staticmethod
+    def available_years(portfolio) -> list[int]:
+        from portfolio.models import Transaction
+        years = (
+            Transaction.objects.filter(portfolio=portfolio, transaction_type='SELL')
+            .values_list('transaction_date__year', flat=True)
+            .distinct()
+            .order_by('-transaction_date__year')
+        )
+        return list(years)
 
 
 class PortfolioCalculationService:
