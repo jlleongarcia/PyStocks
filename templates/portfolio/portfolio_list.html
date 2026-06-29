@@ -9,10 +9,18 @@
             <h1 class="page-title">My Portfolios</h1>
             <p class="page-subtitle">Track and manage your investment positions</p>
         </div>
-        <a href="{% url 'portfolio:portfolio_create_view' %}" class="btn btn-primary">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            New Portfolio
-        </a>
+        <div style="display:flex;gap:10px;">
+            {% if portfolios %}
+            <a href="{% url 'portfolio:portfolio_combined_view' %}" class="btn btn-secondary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="9" height="9" rx="1"/><rect x="13" y="3" width="9" height="9" rx="1"/><rect x="2" y="14" width="9" height="9" rx="1"/><rect x="13" y="14" width="9" height="9" rx="1"/></svg>
+                Combined View
+            </a>
+            {% endif %}
+            <a href="{% url 'portfolio:portfolio_create_view' %}" class="btn btn-primary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                New Portfolio
+            </a>
+        </div>
     </div>
 </div>
 

@@ -316,6 +316,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 from django.contrib import messages
+from django.urls import reverse
 
 
 @login_required
@@ -370,6 +371,7 @@ def portfolio_detail_view(request, pk):
 
         if tx.transaction_type == 'BUY':
             ledger.append({
+                'tx_id': tx.id,
                 'date': tx_date, 'type': 'buy', 'label': 'Buy',
                 'symbol': tx.symbol,
                 'price': price, 'quantity': qty,
@@ -382,6 +384,7 @@ def portfolio_detail_view(request, pk):
             avg = position_avg.get(tx.symbol)
             pnl = round((price - avg) * qty - commission, 2) if avg else None
             ledger.append({
+                'tx_id': tx.id,
                 'date': tx_date, 'type': 'sell', 'label': 'Sell',
                 'symbol': tx.symbol,
                 'price': price, 'quantity': qty,
@@ -392,6 +395,7 @@ def portfolio_detail_view(request, pk):
             })
         elif tx.transaction_type == 'DIV':
             ledger.append({
+                'tx_id': tx.id,
                 'date': tx_date, 'type': 'div', 'label': 'Dividend',
                 'symbol': tx.symbol,
                 'price': price, 'quantity': qty,
@@ -401,6 +405,7 @@ def portfolio_detail_view(request, pk):
             })
         elif tx.transaction_type == 'SPOF':
             ledger.append({
+                'tx_id': tx.id,
                 'date': tx_date, 'type': 'spof', 'label': 'Spin-Off',
                 'symbol': tx.symbol,
                 'price': price, 'quantity': qty,
@@ -409,30 +414,34 @@ def portfolio_detail_view(request, pk):
             })
         elif tx.transaction_type == 'INT':
             ledger.append({
+                'tx_id': tx.id,
                 'date': tx_date, 'type': 'int', 'label': 'Interest',
-                'symbol': tx.symbol or '—',
+                'symbol': tx.transaction_currency or '—',
                 'price': None, 'quantity': None,
                 'commission': 0, 'total': price,
                 'extra': None, 'extra_class': None,
             })
         elif tx.transaction_type == 'DEP':
             ledger.append({
+                'tx_id': tx.id,
                 'date': tx_date, 'type': 'dep', 'label': 'Deposit',
-                'symbol': tx.symbol or '—',
+                'symbol': tx.transaction_currency or '—',
                 'price': None, 'quantity': None,
                 'commission': 0, 'total': price,
                 'extra': None, 'extra_class': None,
             })
         elif tx.transaction_type == 'WIT':
             ledger.append({
+                'tx_id': tx.id,
                 'date': tx_date, 'type': 'wit', 'label': 'Withdrawal',
-                'symbol': tx.symbol or '—',
+                'symbol': tx.transaction_currency or '—',
                 'price': None, 'quantity': None,
                 'commission': 0, 'total': price,
                 'extra': None, 'extra_class': None,
             })
         elif tx.transaction_type == 'EXC':
             ledger.append({
+                'tx_id': tx.id,
                 'date': tx_date, 'type': 'exc', 'label': 'Exchange',
                 'symbol': tx.symbol or '—',
                 'price': price, 'quantity': qty,
@@ -445,6 +454,7 @@ def portfolio_detail_view(request, pk):
         qty = float(div.quantity) if div.quantity else None
         div_per_share = round(float(div.amount) / qty, 4) if qty else None
         ledger.append({
+            'tx_id': None,
             'date': effective_date, 'type': 'div', 'label': 'Dividend',
             'symbol': div.symbol,
             'price': div_per_share, 'quantity': qty,
@@ -533,16 +543,20 @@ def transaction_create_view(request, portfolio_id):
             if tx_type in STOCK_TYPES:
                 if not symbol:
                     messages.error(request, 'Stock symbol is required.')
+                    from .models import CURRENCY_CHOICES
                     return render(request, 'portfolio/transaction_form.html', {
                         'portfolio': portfolio,
-                        'today': datetime.now().strftime('%Y-%m-%d')
+                        'today': datetime.now().strftime('%Y-%m-%d'),
+                        'currency_choices': CURRENCY_CHOICES,
                     })
                 success, message, stock = PortfolioCalculationService.ensure_stock_exists(symbol)
                 if not success:
                     messages.error(request, message)
+                    from .models import CURRENCY_CHOICES
                     return render(request, 'portfolio/transaction_form.html', {
                         'portfolio': portfolio,
-                        'today': datetime.now().strftime('%Y-%m-%d')
+                        'today': datetime.now().strftime('%Y-%m-%d'),
+                        'currency_choices': CURRENCY_CHOICES,
                     })
                 resolved_symbol = stock.symbol
                 stock_currency = stock.currency or 'USD'
@@ -570,8 +584,10 @@ def transaction_create_view(request, portfolio_id):
                 tx_currency = to_currency or from_currency
             elif tx_type in STOCK_TYPES:
                 tx_currency = stock_currency
+            elif tx_type in {'DEP', 'WIT'}:
+                tx_currency = request.POST.get('dep_wit_currency', '').strip().upper() or portfolio.native_currency
             else:
-                # INT: user may specify via symbol field or leave blank
+                # INT: user may specify via transaction_currency field or leave blank
                 tx_currency = request.POST.get('transaction_currency', '').strip().upper() or portfolio.native_currency
 
             # ── FX rate resolution ───────────────────────────────────────────
@@ -618,11 +634,13 @@ def transaction_create_view(request, portfolio_id):
                         f"No FX rate found for {tx_currency}/{portfolio.native_currency} around "
                         f"{tx_date_str}. Please enter it manually in the FX Rate field and resubmit."
                     )
+                    from .models import CURRENCY_CHOICES
                     return render(request, 'portfolio/transaction_form.html', {
                         'portfolio': portfolio,
                         'today': datetime.now().strftime('%Y-%m-%d'),
                         'fx_warning': True,
                         'post': request.POST,
+                        'currency_choices': CURRENCY_CHOICES,
                     })
 
             transaction = Transaction.objects.create(
@@ -677,9 +695,11 @@ def transaction_create_view(request, portfolio_id):
             print(f"ERROR in transaction_create_view: {error_details}")
             messages.error(request, f'Error adding transaction: {str(e)}')
 
+    from .models import CURRENCY_CHOICES
     return render(request, 'portfolio/transaction_form.html', {
         'portfolio': portfolio,
         'today': datetime.now().strftime('%Y-%m-%d'),
+        'currency_choices': CURRENCY_CHOICES,
     })
 
 
@@ -726,6 +746,346 @@ def position_detail_view(request, portfolio_id, symbol):
         'portfolio': portfolio,
         'position': position_data,
         'transactions': transactions
+    })
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def transaction_edit_view(request, portfolio_id, tx_id):
+    """Frontend view: Edit an existing transaction"""
+    from .models import CURRENCY_CHOICES
+    portfolio = get_object_or_404(Portfolio, pk=portfolio_id, user=request.user)
+    transaction = get_object_or_404(Transaction, pk=tx_id, portfolio=portfolio)
+
+    STOCK_TYPES = {'BUY', 'SELL', 'DIV', 'SPOF'}
+    FX_TYPES    = {'BUY', 'SELL', 'DIV', 'INT', 'EXC'}
+
+    if request.method == 'POST':
+        old_symbol = transaction.symbol
+        old_type   = transaction.transaction_type
+
+        try:
+            tx_type = request.POST.get('transaction_type', '').upper()
+            symbol  = request.POST.get('symbol', '').strip().upper()
+
+            if tx_type in STOCK_TYPES and symbol:
+                success, message, stock = PortfolioCalculationService.ensure_stock_exists(symbol)
+                if not success:
+                    messages.error(request, message)
+                    return redirect('portfolio:transaction_edit_view', portfolio_id=portfolio_id, tx_id=tx_id)
+                resolved_symbol = stock.symbol
+                stock_currency  = stock.currency or 'USD'
+            else:
+                resolved_symbol = ''
+                stock_currency  = ''
+
+            commission_value = request.POST.get('commission', '').strip() or '0'
+            quantity_raw     = request.POST.get('quantity', '').strip()
+            quantity_value   = Decimal(quantity_raw) if quantity_raw else Decimal('1')
+            tx_date_str      = request.POST.get('transaction_date', '')
+
+            # Resolve transaction currency
+            if tx_type == 'EXC':
+                to_currency   = request.POST.get('to_currency', '').strip().upper()
+                from_currency = request.POST.get('from_currency', '').strip().upper()
+                tx_currency   = to_currency or from_currency
+            elif tx_type in STOCK_TYPES:
+                tx_currency = stock_currency
+            elif tx_type in {'DEP', 'WIT'}:
+                tx_currency = request.POST.get('dep_wit_currency', '').strip().upper() or portfolio.native_currency
+            else:
+                tx_currency = request.POST.get('transaction_currency', '').strip().upper() or portfolio.native_currency
+
+            # FX rate resolution (simplified — no unavailable-warning redirect for edits)
+            manual_fx  = request.POST.get('fx_rate', '').strip()
+            fx_rate    = None
+            fx_source  = ''
+            native_amt = None
+
+            if tx_type in FX_TYPES and tx_currency and tx_currency != portfolio.native_currency:
+                tx_date_obj = datetime.strptime(tx_date_str, '%Y-%m-%d').date() if tx_date_str else date_type.today()
+                if manual_fx:
+                    fx_rate   = Decimal(manual_fx)
+                    fx_source = 'manual'
+                else:
+                    fx_rate, fx_source = FXRateService.get_rate(tx_currency, portfolio.native_currency, tx_date_obj)
+
+                if fx_rate and tx_type != 'EXC':
+                    price_val = Decimal(request.POST.get('price', '0') or '0')
+                    total_in_stock_cur = quantity_value * price_val
+                    if tx_type == 'BUY':
+                        total_in_stock_cur += Decimal(commission_value)
+                    else:
+                        total_in_stock_cur -= Decimal(commission_value)
+                    native_amt = total_in_stock_cur * fx_rate
+
+            # Apply updates
+            transaction.symbol           = resolved_symbol
+            transaction.transaction_type = tx_type
+            transaction.quantity         = quantity_value
+            transaction.price            = Decimal(request.POST.get('price', '0') or '0')
+            transaction.commission       = Decimal(commission_value)
+            transaction.transaction_date = tx_date_str
+            transaction.broker           = request.POST.get('broker', '')
+            transaction.notes            = request.POST.get('notes', '')
+            transaction.transaction_currency = tx_currency
+            if fx_rate is not None:
+                transaction.fx_rate        = fx_rate
+                transaction.native_amount  = native_amt
+                transaction.fx_rate_source = fx_source
+
+            if tx_type == 'EXC':
+                from_amount_raw = request.POST.get('from_amount', '').strip()
+                to_amount_raw   = request.POST.get('to_amount', '').strip()
+                transaction.from_currency       = from_currency
+                transaction.from_amount         = Decimal(from_amount_raw) if from_amount_raw else None
+                transaction.to_currency         = to_currency
+                transaction.to_amount           = Decimal(to_amount_raw) if to_amount_raw else None
+                transaction.commission_currency = request.POST.get('commission_currency', '').strip().upper()
+
+            transaction.save()
+
+            # Rebuild positions for any affected stock symbols
+            symbols_to_rebuild = set()
+            if old_symbol and old_type in STOCK_TYPES:
+                symbols_to_rebuild.add(old_symbol)
+            if resolved_symbol and tx_type in STOCK_TYPES:
+                symbols_to_rebuild.add(resolved_symbol)
+            for sym in symbols_to_rebuild:
+                PortfolioCalculationService.rebuild_position(portfolio, sym)
+
+            messages.success(request, 'Transaction updated successfully!')
+            return redirect('portfolio:portfolio_detail_view', pk=portfolio.id)
+
+        except Exception as e:
+            import traceback
+            logger.error("Error in transaction_edit_view: %s", traceback.format_exc())
+            messages.error(request, f'Error updating transaction: {str(e)}')
+
+    # GET: build pre-fill dict from transaction
+    tx_date = transaction.transaction_date
+    tx_date_str = tx_date.strftime('%Y-%m-%d') if hasattr(tx_date, 'strftime') else str(tx_date)[:10]
+
+    post = {
+        'transaction_type':    transaction.transaction_type,
+        'symbol':              transaction.symbol or '',
+        'quantity':            str(transaction.quantity),
+        'price':               str(transaction.price),
+        'commission':          str(transaction.commission),
+        'transaction_date':    tx_date_str,
+        'broker':              transaction.broker or '',
+        'notes':               transaction.notes or '',
+        'fx_rate':             str(transaction.fx_rate) if transaction.fx_rate else '',
+        'transaction_currency': transaction.transaction_currency or '',
+        'dep_wit_currency':    transaction.transaction_currency or '',
+        'from_currency':       transaction.from_currency or '',
+        'from_amount':         str(transaction.from_amount) if transaction.from_amount else '',
+        'to_currency':         transaction.to_currency or '',
+        'to_amount':           str(transaction.to_amount) if transaction.to_amount else '',
+        'commission_currency': transaction.commission_currency or '',
+    }
+
+    form_action = reverse('portfolio:transaction_edit_view', kwargs={'portfolio_id': portfolio_id, 'tx_id': tx_id})
+
+    return render(request, 'portfolio/transaction_form.html', {
+        'portfolio':       portfolio,
+        'today':           datetime.now().strftime('%Y-%m-%d'),
+        'is_edit':         True,
+        'transaction':     transaction,
+        'post':            post,
+        'form_action':     form_action,
+        'currency_choices': CURRENCY_CHOICES,
+    })
+
+
+@login_required
+@require_http_methods(["POST"])
+def transaction_delete_view(request, portfolio_id, tx_id):
+    """Delete a transaction and rebuild affected positions."""
+    portfolio   = get_object_or_404(Portfolio, pk=portfolio_id, user=request.user)
+    transaction = get_object_or_404(Transaction, pk=tx_id, portfolio=portfolio)
+
+    STOCK_TYPES = {'BUY', 'SELL', 'DIV', 'SPOF'}
+    symbol  = transaction.symbol
+    tx_type = transaction.transaction_type
+
+    # Restore FX lot amounts that this transaction consumed (FIFO integrity)
+    for consumption in transaction.fx_lot_consumptions.all():
+        lot = consumption.lot
+        lot.remaining_amount_foreign += consumption.amount_foreign_consumed
+        lot.is_closed = False
+        lot.save(update_fields=['remaining_amount_foreign', 'is_closed'])
+
+    transaction.delete()  # cascades to FXLot (source) and FXLotConsumption records
+
+    if symbol and tx_type in STOCK_TYPES:
+        PortfolioCalculationService.rebuild_position(portfolio, symbol)
+
+    messages.success(request, 'Transaction deleted successfully.')
+    return redirect('portfolio:portfolio_detail_view', pk=portfolio.id)
+
+
+@login_required
+def portfolio_combined_view(request):
+    """Frontend view: Combined summary of all portfolios with same UI as individual portfolio."""
+    from datetime import timedelta
+    from research.models import HistoricalPrice
+    from django.db.models import Max, Min
+
+    portfolios = list(Portfolio.objects.filter(user=request.user).prefetch_related('positions', 'transactions', 'dividends'))
+
+    if not portfolios:
+        return redirect('portfolio:portfolio_list_view')
+
+    # Gather all unique symbols
+    all_symbols = list({pos.symbol for p in portfolios for pos in p.positions.all()})
+
+    price_data_map = PriceCacheService.get_prices(all_symbols) if all_symbols else {}
+
+    one_year_ago = date_type.today() - timedelta(days=365)
+    price_ranges = HistoricalPrice.objects.filter(
+        stock__symbol__in=all_symbols,
+        date__gte=one_year_ago,
+    ).values('stock__symbol').annotate(high_52w=Max('high'), low_52w=Min('low'))
+    price_range_map = {r['stock__symbol']: r for r in price_ranges}
+
+    # Merge positions by symbol
+    symbol_data = {}
+    for portfolio in portfolios:
+        for pos in portfolio.positions.all():
+            if pos.symbol not in symbol_data:
+                symbol_data[pos.symbol] = {
+                    'qty': Decimal('0'),
+                    'total_cost': Decimal('0'),
+                    'first_pos': pos,
+                }
+            symbol_data[pos.symbol]['qty']        += pos.quantity
+            symbol_data[pos.symbol]['total_cost'] += pos.total_cost
+
+    positions_detail = []
+    for symbol, data in symbol_data.items():
+        pos      = data['first_pos']
+        pos_data = PortfolioCalculationService.get_position_detail(pos, price_range_map, price_data_map)
+
+        total_qty      = float(data['qty'])
+        total_invested = float(data['total_cost'])
+        avg_cost       = total_invested / total_qty if total_qty > 0 else 0
+
+        price_entry   = price_data_map.get(symbol)
+        current_price = price_entry['price'] if price_entry else float(pos.current_price or pos.average_cost)
+        current_value = current_price * total_qty
+        gain_loss     = current_value - total_invested
+        gain_loss_pct = (gain_loss / total_invested * 100) if total_invested > 0 else 0
+
+        pos_data['quantity']      = total_qty
+        pos_data['total_invested'] = round(total_invested, 2)
+        pos_data['average_cost']  = round(avg_cost, 4)
+        pos_data['current_value'] = round(current_value, 2)
+        pos_data['gain_loss']     = round(gain_loss, 2)
+        pos_data['gain_loss_percentage'] = round(gain_loss_pct, 2)
+
+        # Scale annual dividend income for combined quantity
+        if pos_data.get('annual_dividend_income') and float(pos.quantity) > 0:
+            per_share = pos_data['annual_dividend_income'] / float(pos.quantity)
+            pos_data['annual_dividend_income'] = round(per_share * total_qty, 2)
+            if total_invested > 0:
+                pos_data['yield_on_cost'] = round(pos_data['annual_dividend_income'] / total_invested * 100, 2)
+
+        positions_detail.append(pos_data)
+
+    positions_detail.sort(key=lambda p: p['current_value'], reverse=True)
+
+    total_invested_all = sum(p['total_invested'] for p in positions_detail)
+    current_value_all  = sum(p['current_value']  for p in positions_detail)
+    gain_loss_all      = current_value_all - total_invested_all
+    gain_loss_pct_all  = (gain_loss_all / total_invested_all * 100) if total_invested_all > 0 else 0
+    annual_div_all     = sum(p['annual_dividend_income'] or 0 for p in positions_detail)
+
+    stale_dates = [
+        p['price_date'] for p in positions_detail
+        if not p.get('price_is_live') and p.get('price_date')
+    ]
+
+    # Build combined ledger (read-only — no tx_id needed for edit/delete)
+    TYPE_LABELS = {
+        'BUY': 'Buy', 'SELL': 'Sell', 'DIV': 'Dividend', 'SPOF': 'Spin-Off',
+        'INT': 'Interest', 'DEP': 'Deposit', 'WIT': 'Withdrawal', 'EXC': 'Exchange',
+    }
+    position_avg = {p['symbol']: p['average_cost'] for p in positions_detail}
+    ledger = []
+
+    for portfolio in portfolios:
+        for tx in portfolio.transactions.order_by('-transaction_date'):
+            qty        = float(tx.quantity)
+            price      = float(tx.price)
+            commission = float(tx.commission)
+            tx_date    = tx.transaction_date.date() if hasattr(tx.transaction_date, 'date') else tx.transaction_date
+            tx_type    = tx.transaction_type
+            is_cash    = tx_type in {'INT', 'DEP', 'WIT'}
+
+            extra       = None
+            extra_class = None
+            if tx_type == 'BUY' and tx.buy_yield:
+                extra       = f"{float(tx.buy_yield):.2f}%"
+                extra_class = 'positive'
+            elif tx_type == 'SELL':
+                avg = position_avg.get(tx.symbol)
+                if avg:
+                    pnl         = round((price - avg) * qty - commission, 2)
+                    extra       = f"${pnl:+,.2f}"
+                    extra_class = 'positive' if pnl >= 0 else 'negative'
+
+            ledger.append({
+                'portfolio_name': portfolio.name,
+                'date':       tx_date,
+                'type':       tx_type.lower(),
+                'label':      TYPE_LABELS.get(tx_type, tx_type),
+                'symbol':     (tx.transaction_currency or '—') if is_cash else (tx.symbol or '—'),
+                'price':      None if is_cash else price,
+                'quantity':   None if is_cash else qty,
+                'commission': 0 if is_cash else commission,
+                'total':      price if is_cash else price * qty,
+                'extra':      extra,
+                'extra_class': extra_class,
+            })
+
+        for div in portfolio.dividends.all():
+            effective_date = div.payment_date or div.ex_dividend_date
+            qty_d          = float(div.quantity) if div.quantity else None
+            div_per_share  = round(float(div.amount) / qty_d, 4) if qty_d else None
+            ledger.append({
+                'portfolio_name': portfolio.name,
+                'date':       effective_date,
+                'type':       'div',
+                'label':      'Dividend',
+                'symbol':     div.symbol,
+                'price':      div_per_share,
+                'quantity':   qty_d,
+                'commission': 0,
+                'total':      float(div.amount),
+                'extra':      None,
+                'extra_class': None,
+            })
+
+    ledger.sort(key=lambda x: x['date'] or date_type.min, reverse=True)
+
+    summary = {
+        'summary': {
+            'current_value':            round(current_value_all, 2),
+            'total_invested':           round(total_invested_all, 2),
+            'total_gain_loss':          round(gain_loss_all, 2),
+            'total_gain_loss_percentage': round(gain_loss_pct_all, 2),
+            'annual_dividend_income':   round(annual_div_all, 2),
+        },
+        'positions': positions_detail,
+        'metrics':   {'positions_count': len(positions_detail)},
+        'price_as_of': min(stale_dates) if stale_dates else None,
+    }
+
+    return render(request, 'portfolio/portfolio_combined.html', {
+        'summary':    summary,
+        'ledger':     ledger,
+        'portfolios': portfolios,
     })
 
 

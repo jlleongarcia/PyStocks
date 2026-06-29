@@ -730,6 +730,22 @@ class PortfolioCalculationService:
         }
     
     @staticmethod
+    def rebuild_position(portfolio, symbol):
+        """Rebuild position for a symbol from scratch by replaying all BUY/SELL/SPOF transactions."""
+        from portfolio.models import Position, Transaction
+
+        Position.objects.filter(portfolio=portfolio, symbol=symbol).delete()
+
+        transactions = Transaction.objects.filter(
+            portfolio=portfolio,
+            symbol=symbol,
+            transaction_type__in=['BUY', 'SELL', 'SPOF'],
+        ).order_by('transaction_date')
+
+        for tx in transactions:
+            PortfolioCalculationService.update_position_from_transaction(tx)
+
+    @staticmethod
     def ensure_stock_exists(symbol: str) -> tuple[bool, str, object]:
         """
         Ensure stock exists in database, auto-fetch if not found
