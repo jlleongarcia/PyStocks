@@ -272,21 +272,52 @@ class StockDataFetcher:
         return (created_count, updated_count)
     
     @transaction.atomic
-    def _fetch_payment_date_map(self, symbol: str) -> dict:
+    def _fetch_dividends_alphavantage(self, symbol: str) -> Optional[List[Dict]]:
         """
-        Build a {ex_date: pay_date} map from yfinance calendar / info.
+        Fetch full dividend history from Alpha Vantage, including payment_date.
 
-        yfinance exposes upcoming payment dates but not full historical ones,
-        so this covers the critical boundary case (e.g. Dec ex-date / Jan pay-date).
-        On each sync the map is re-fetched, so records gain a pay-date as soon
-        as Yahoo Finance publishes it.
+        Returns a list of dicts with keys: ex_dividend_date, payment_date,
+        declaration_date, record_date, amount.  Returns None if the API key is
+        missing, the rate limit is hit, or any other error occurs — callers
+        should fall back to yfinance in that case.
+        """
+        from django.conf import settings
+        import requests as _requests
+
+        api_key = getattr(settings, 'ALPHA_VANTAGE_API_KEY', '')
+        if not api_key:
+            return None
+
+        try:
+            resp = _requests.get(
+                'https://www.alphavantage.co/query',
+                params={'function': 'DIVIDENDS', 'symbol': symbol.upper(), 'apikey': api_key},
+                timeout=10,
+            )
+            data = resp.json()
+
+            if 'data' not in data:
+                # Rate-limit or error message from AV
+                logger.warning(f"Alpha Vantage DIVIDENDS no data for {symbol}: {data}")
+                return None
+
+            return data['data']
+
+        except Exception as e:
+            logger.warning(f"Alpha Vantage DIVIDENDS fetch failed for {symbol}: {e}")
+            return None
+
+    def _fetch_payment_date_map_yfinance(self, symbol: str) -> dict:
+        """
+        Fallback: build a {ex_date: pay_date} map from yfinance calendar / info.
+        Only covers the single next upcoming dividend; used when Alpha Vantage
+        is unavailable.
         """
         from datetime import datetime as dt
         payment_map = {}
         try:
             ticker = yf.Ticker(symbol.upper())
 
-            # ticker.calendar: dict with 'Ex-Dividend Date' and 'Dividend Date'
             cal = ticker.calendar
             if isinstance(cal, dict):
                 ex_d  = cal.get('Ex-Dividend Date')
@@ -296,65 +327,109 @@ class StockDataFetcher:
                     pay_obj = pay_d.date() if hasattr(pay_d, 'date') else pay_d
                     payment_map[ex_obj] = pay_obj
 
-            # ticker.info: 'exDividendDate' + 'dividendDate' (Unix timestamps)
             info = ticker.info
             ex_ts  = info.get('exDividendDate')
             pay_ts = info.get('dividendDate')
             if ex_ts and pay_ts:
                 ex_obj  = dt.utcfromtimestamp(ex_ts).date()
                 pay_obj = dt.utcfromtimestamp(pay_ts).date()
-                payment_map.setdefault(ex_obj, pay_obj)  # calendar wins if already present
+                payment_map.setdefault(ex_obj, pay_obj)
 
         except Exception as e:
-            logger.warning(f"Could not fetch payment date map for {symbol}: {e}")
+            logger.warning(f"yfinance payment date map failed for {symbol}: {e}")
         return payment_map
 
     def save_dividends(self, symbol: str) -> int:
         """
         Fetch and save dividend history to database.
 
-        Stores payment_date (actual cash receipt date) where yfinance provides it
-        so the portfolio can attribute dividends to the correct tax year.
+        Primary source: Alpha Vantage DIVIDENDS endpoint (has full payment_date
+        history).  Falls back to yfinance when AV is unavailable or rate-limited.
         """
-        # Ensure stock exists
         stock = Stock.objects.filter(symbol=symbol.upper()).first()
         if not stock:
             stock = self.save_stock_info(symbol)
             if not stock:
                 return 0
 
-        # Fetch dividends (ex-date → amount)
+        # --- Alpha Vantage path (preferred) ---
+        av_data = self._fetch_dividends_alphavantage(symbol)
+        if av_data:
+            created_count = 0
+            for entry in av_data:
+                try:
+                    ex_date_str  = entry.get('ex_dividend_date', '')
+                    pay_date_str = entry.get('payment_date', '')
+                    amount_str   = entry.get('amount', '')
+                    if not ex_date_str or not amount_str:
+                        continue
+
+                    ex_date  = date.fromisoformat(ex_date_str)
+                    # AV sends the string 'None' for records without a known payment date
+                    pay_date = date.fromisoformat(pay_date_str) if pay_date_str and pay_date_str != 'None' else None
+
+                    defaults = {'amount': Decimal(str(amount_str))}
+                    if pay_date is not None:
+                        defaults['payment_date'] = pay_date
+
+                    obj, created = Dividend.objects.get_or_create(
+                        stock=stock,
+                        date=ex_date,
+                        defaults={**defaults, 'payment_date': pay_date},
+                    )
+                    if not created:
+                        obj.amount = Decimal(str(amount_str))
+                        if pay_date is not None:
+                            obj.payment_date = pay_date
+                        obj.save()
+
+                    if created:
+                        created_count += 1
+
+                except Exception as e:
+                    logger.error(f"Error saving AV dividend for {symbol} on {entry}: {e}")
+                    continue
+
+            logger.info(f"Alpha Vantage: saved/updated {len(av_data)} dividend records for {symbol} ({created_count} new)")
+            return created_count
+
+        # --- yfinance fallback ---
+        logger.info(f"Alpha Vantage unavailable for {symbol}, falling back to yfinance")
         dividends = self.fetch_dividends(symbol)
         if dividends is None:
             return 0
 
-        # Build ex_date → pay_date map from calendar / info
-        payment_map = self._fetch_payment_date_map(symbol)
-
+        payment_map = self._fetch_payment_date_map_yfinance(symbol)
         created_count = 0
 
-        for date, amount in dividends.items():
+        for div_date, amount in dividends.items():
             try:
-                date_obj    = date.date() if hasattr(date, 'date') else date
-                pay_date    = payment_map.get(date_obj)
+                date_obj = div_date.date() if hasattr(div_date, 'date') else div_date
+                pay_date = payment_map.get(date_obj)
 
-                _, created = Dividend.objects.update_or_create(
+                defaults = {'amount': Decimal(str(amount))}
+                if pay_date is not None:
+                    defaults['payment_date'] = pay_date
+
+                obj, created = Dividend.objects.get_or_create(
                     stock=stock,
                     date=date_obj,
-                    defaults={
-                        'amount':       Decimal(str(amount)),
-                        'payment_date': pay_date,   # None for historical records without data
-                    }
+                    defaults={**defaults, 'payment_date': pay_date},
                 )
+                if not created:
+                    obj.amount = Decimal(str(amount))
+                    if pay_date is not None:
+                        obj.payment_date = pay_date
+                    obj.save()
 
                 if created:
                     created_count += 1
 
             except Exception as e:
-                logger.error(f"Error saving dividend for {symbol} on {date}: {str(e)}")
+                logger.error(f"Error saving yfinance dividend for {symbol} on {div_date}: {e}")
                 continue
 
-        logger.info(f"Saved {created_count} dividend records for {symbol}")
+        logger.info(f"yfinance fallback: saved {created_count} new dividend records for {symbol}")
         return created_count
     
     @transaction.atomic
